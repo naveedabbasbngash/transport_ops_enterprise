@@ -28,6 +28,7 @@ migrate_working_dir/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
+.flutter-plugins
 .pub-cache/
 .pub/
 /build/
@@ -43,3 +44,31 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Flutter build outputs
+/android/app/build/
+/ios/Flutter/Flutter.framework/
+/ios/Flutter/Flutter.podspec
+/ios/Flutter/App.framework/
+/ios/Flutter/engine/
+/ios/Flutter/Flutter.xcframework/
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/ephemeral/
+/ios/Pods/
+/ios/Runner/GeneratedPluginRegistrant.*
+/ios/Runner.xcworkspace/
+/macos/Pods/
+/macos/Flutter/ephemeral/
+/macos/Flutter/Flutter.framework/
+/macos/Flutter/Flutter.podspec
+/macos/Runner.xcworkspace/
+/linux/flutter/ephemeral/
+/windows/flutter/ephemeral/
+/web/.dart_tool/
+
+# IDE
+.idea/
+.vscode/
+
+# Local output/artifacts
+/output/
