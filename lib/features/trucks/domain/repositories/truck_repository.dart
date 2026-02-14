@@ -13,8 +13,12 @@ abstract class TruckRepository {
     String? model,
     String? makeYear,
     String? registrationNumber,
+    List<int>? registrationCardBytes,
+    String? registrationCardFileName,
     String? ownership,
     String? vendorId,
+    String? ownerName,
+    String? companyName,
     String? notes,
   });
 }

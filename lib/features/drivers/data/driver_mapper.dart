@@ -8,6 +8,7 @@ DriverEntity driverFromApi(Map<String, dynamic> map) {
     residentId: map['resident_id']?.toString(),
     driverType: (map['driver_type'] ?? '').toString(),
     vendorId: map['vendor_id']?.toString(),
+    iqamaAttachment: map['iqama_attachment']?.toString(),
     licenseNo: map['license_no']?.toString(),
     licenseExpiry: map['license_expiry']?.toString(),
     status: (map['status'] ?? '').toString(),

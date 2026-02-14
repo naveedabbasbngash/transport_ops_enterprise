@@ -8,7 +8,13 @@ class GetTrips {
 
   Future<List<TripEntity>> call({
     String query = '',
+    String? status,
+    bool missingWaybillOnly = false,
   }) {
-    return _tripsRepository.getTrips(query: query);
+    return _tripsRepository.getTrips(
+      query: query,
+      status: status,
+      missingWaybillOnly: missingWaybillOnly,
+    );
   }
 }

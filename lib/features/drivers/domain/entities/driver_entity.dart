@@ -5,6 +5,7 @@ class DriverEntity {
   final String? residentId;
   final String driverType; // company | vendor
   final String? vendorId;
+  final String? iqamaAttachment;
   final String? licenseNo;
   final String? licenseExpiry; // YYYY-MM-DD
   final String status; // active | inactive | blocked
@@ -18,6 +19,7 @@ class DriverEntity {
     this.phone,
     this.residentId,
     this.vendorId,
+    this.iqamaAttachment,
     this.licenseNo,
     this.licenseExpiry,
     this.notes,

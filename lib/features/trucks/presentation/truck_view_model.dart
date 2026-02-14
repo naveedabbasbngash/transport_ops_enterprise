@@ -45,8 +45,12 @@ class TruckViewModel extends StateNotifier<TruckState> {
     String? model,
     String? makeYear,
     String? registrationNumber,
+    List<int>? registrationCardBytes,
+    String? registrationCardFileName,
     String? ownership,
     String? vendorId,
+    String? ownerName,
+    String? companyName,
     String? notes,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -58,8 +62,12 @@ class TruckViewModel extends StateNotifier<TruckState> {
         model: model,
         makeYear: makeYear,
         registrationNumber: registrationNumber,
+        registrationCardBytes: registrationCardBytes,
+        registrationCardFileName: registrationCardFileName,
         ownership: ownership,
         vendorId: vendorId,
+        ownerName: ownerName,
+        companyName: companyName,
         notes: notes,
       );
       await loadTrucks();

@@ -35,6 +35,8 @@ class TripLocalStore {
     await _tripsStore.record(uniqueId).put(db, <String, dynamic>{
       'id': uniqueId,
       'tripDate': tripDate,
+      'referenceNo': _read(normalized, 'reference_no'),
+      'bookingNo': _read(normalized, 'booking_no'),
       'waybillNo': waybillNo,
       'plateNo': plateNo,
       'fromLocation': fromLocation,
@@ -45,15 +47,15 @@ class TripLocalStore {
       'tripAmount': _toDouble(normalized['trip_amount']),
       'vendorCost': _toDouble(normalized['vendor_cost']),
       'companyOtherCost': _toDouble(normalized['company_other_cost']),
+      'currency': _read(normalized, 'currency'),
       'remarks': _read(normalized, 'remarks'),
-      'reportingMonth': '${reportingMonth.year.toString().padLeft(4, '0')}-${reportingMonth.month.toString().padLeft(2, '0')}',
+      'reportingMonth':
+          '${reportingMonth.year.toString().padLeft(4, '0')}-${reportingMonth.month.toString().padLeft(2, '0')}',
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
-  Future<List<TripEntity>> getTrips({
-    String query = '',
-  }) async {
+  Future<List<TripEntity>> getTrips({String query = ''}) async {
     final db = await _database;
     final snapshots = await _tripsStore.find(
       db,
@@ -93,8 +95,13 @@ class TripLocalStore {
 
     return TripEntity(
       id: (map['id'] ?? '').toString(),
-      reportingMonth:
-          reportingMonth.isNotEmpty ? reportingMonth : derivedReportingMonth,
+      orderId: _optional(map['orderId']),
+      referenceNo: _optional(map['referenceNo']),
+      bookingNo: _optional(map['bookingNo']),
+      currency: _optional(map['currency']),
+      reportingMonth: reportingMonth.isNotEmpty
+          ? reportingMonth
+          : derivedReportingMonth,
       tripDate: (map['tripDate'] ?? '').toString(),
       waybillNo: (map['waybillNo'] ?? '').toString(),
       plateNo: (map['plateNo'] ?? '').toString(),
@@ -106,8 +113,16 @@ class TripLocalStore {
       tripAmount: _toDouble(map['tripAmount']),
       vendorCost: _toDouble(map['vendorCost']),
       companyOtherCost: _toDouble(map['companyOtherCost']),
+      driverIqamaAttachment: _optional(map['driverIqamaAttachment']),
+      truckRegistrationCardUrl: _optional(map['truckRegistrationCardUrl']),
       remarks: (map['remarks'] ?? '').toString(),
-      createdAt: DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
+      hasWaybill:
+          ((map['waybillNo'] ?? '').toString().trim().isNotEmpty) ||
+          ((map['hasWaybill'] ?? false) == true),
+      waybillCount: 0,
+      waybills: const [],
+      createdAt:
+          DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
           DateTime.now().toUtc(),
     );
   }
@@ -142,6 +157,11 @@ class TripLocalStore {
 
   String _read(Map<String, dynamic> map, String key) {
     return (map[key] ?? '').toString().trim();
+  }
+
+  String? _optional(Object? value) {
+    final parsed = (value ?? '').toString().trim();
+    return parsed.isEmpty ? null : parsed;
   }
 
   double _toDouble(Object? value) {
@@ -180,11 +200,19 @@ class TripLocalStore {
     if (first == null || second == null || third == null) return null;
 
     // Default to dd-MM-yyyy for legacy entries without explicit reporting month.
-    if (third >= 1900 && second >= 1 && second <= 12 && first >= 1 && first <= 31) {
+    if (third >= 1900 &&
+        second >= 1 &&
+        second <= 12 &&
+        first >= 1 &&
+        first <= 31) {
       return DateTime(third, second, first);
     }
 
-    if (third >= 1900 && first >= 1 && first <= 12 && second >= 1 && second <= 31) {
+    if (third >= 1900 &&
+        first >= 1 &&
+        first <= 12 &&
+        second >= 1 &&
+        second <= 31) {
       return DateTime(third, first, second);
     }
 

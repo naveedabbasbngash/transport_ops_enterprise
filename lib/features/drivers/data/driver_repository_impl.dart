@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_list_parser.dart';
 import '../../auth/data/auth_local_source.dart';
@@ -32,36 +36,35 @@ class DriverRepositoryImpl implements DriverRepository {
   @override
   Future<DriverEntity> createDriver({
     required String name,
-    required String driverType,
-    String? phone,
-    String? residentId,
-    String? vendorId,
-    String? licenseNo,
-    String? licenseExpiry,
-    String? notes,
+    required String phone,
+    required String residentId,
+    required List<int> iqamaBytes,
+    required String iqamaFileName,
   }) async {
     final companyId = await AuthLocalSource.getCompanyId();
     final fields = <String, String>{
       if (companyId != null && companyId.isNotEmpty) 'company_id': companyId,
       'name': name,
-      'driver_type': driverType,
-      if (phone != null && phone.isNotEmpty) 'phone': phone,
-      if (residentId != null && residentId.isNotEmpty) 'resident_id': residentId,
-      if (vendorId != null && vendorId.isNotEmpty) 'vendor_id': vendorId,
-      if (licenseNo != null && licenseNo.isNotEmpty) 'license_no': licenseNo,
-      if (licenseExpiry != null && licenseExpiry.isNotEmpty)
-        'license_expiry': licenseExpiry,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'driver_type': 'company',
+      'phone': phone,
+      'resident_id': residentId,
     };
+
+    final iqamaFile = http.MultipartFile.fromBytes(
+      'iqama_attachment',
+      iqamaBytes,
+      filename: iqamaFileName,
+    );
 
     final response = await _apiClient.postMultipart(
       'drivers',
       fields: fields,
+      files: [iqamaFile],
     );
-
-    if (response.body.isEmpty) {
-      throw Exception('Driver creation failed with empty response.');
-    }
+    final decodedBody = _decodeBody(response.body);
+    final data = decodedBody['data'];
+    if (data is Map<String, dynamic>) return driverFromApi(data);
+    if (data is Map) return driverFromApi(data.cast<String, dynamic>());
 
     try {
       final decoded = await _apiClient.getJson(
@@ -83,14 +86,22 @@ class DriverRepositoryImpl implements DriverRepository {
     return driverFromApi({
       'id': '',
       'name': name,
-      'driver_type': driverType,
+      'driver_type': 'company',
       'phone': phone,
       'resident_id': residentId,
-      'vendor_id': vendorId,
-      'license_no': licenseNo,
-      'license_expiry': licenseExpiry,
       'status': 'active',
-      'notes': notes,
     });
+  }
+
+  Map<String, dynamic> _decodeBody(String body) {
+    if (body.trim().isEmpty) return <String, dynamic>{};
+    try {
+      final dynamic parsed = jsonDecode(body);
+      if (parsed is Map<String, dynamic>) return parsed;
+      if (parsed is Map) return parsed.cast<String, dynamic>();
+      return <String, dynamic>{'data': parsed};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
   }
 }

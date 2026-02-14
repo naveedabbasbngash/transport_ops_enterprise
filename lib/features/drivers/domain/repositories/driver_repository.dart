@@ -8,12 +8,9 @@ abstract class DriverRepository {
 
   Future<DriverEntity> createDriver({
     required String name,
-    required String driverType,
-    String? phone,
-    String? residentId,
-    String? vendorId,
-    String? licenseNo,
-    String? licenseExpiry,
-    String? notes,
+    required String phone,
+    required String residentId,
+    required List<int> iqamaBytes,
+    required String iqamaFileName,
   });
 }

@@ -1,57 +1,74 @@
 import 'package:flutter/material.dart';
 
-import '../../trips/domain/entities/trip_entity.dart';
-import '../domain/entities/report_models.dart';
+import '../domain/entities/expense_report_models.dart';
 
-enum ReportPeriod {
-  today,
+enum ExpenseReportPeriod {
   day,
+  week,
   month,
   range,
 }
 
 class ReportsState {
   final bool isLoading;
-  final ReportPeriod period;
-  final DateTime selectedDate;
+  final ExpenseReportPeriod period;
+  final DateTime selectedDay;
+  final DateTime selectedWeekAnchor;
   final DateTime selectedMonth;
   final DateTimeRange selectedRange;
-  final String query;
-  final String? selectedClient;
-  final String? selectedPlate;
-  final String? selectedRoute;
-  final List<String> availableClients;
-  final List<String> availablePlates;
-  final List<String> availableRoutes;
-  final List<TripEntity> filteredTrips;
-  final ReportTotals todayTotals;
-  final ReportTotals selectedDayTotals;
-  final ReportTotals selectedMonthTotals;
-  final ReportTotals filteredTotals;
-  final MonthlyComparisonReport? monthlyReport;
-  final ReportDataQuality dataQuality;
+  final String? selectedDriverId;
+  final String? selectedTruckId;
+  final String? selectedVendorId;
+  final String? selectedClientId;
+  final String? selectedType;
+  final List<ExpenseReportOption> drivers;
+  final List<ExpenseReportOption> trucks;
+  final List<ExpenseReportOption> vendors;
+  final List<ExpenseReportOption> clients;
+  final List<ExpenseReportItem> items;
+  final ExpenseReportTotals totals;
+  final BusinessKpis kpis;
+  final List<StatusRow> tripsByStatus;
+  final List<ExpenseReportOption> expenseTypeBreakdown;
+  final List<ReportGroupRow> topClients;
+  final List<ReportGroupRow> topVendors;
+  final List<ReportGroupRow> topDrivers;
+  final List<ReportGroupRow> topTrucks;
+  final DriverPerformanceSummary driverPerformance;
+  final VendorStatementSummary vendorStatement;
+  final bool isPostingVendorPayment;
+  final String periodLabel;
   final String? error;
 
   const ReportsState({
     required this.isLoading,
     required this.period,
-    required this.selectedDate,
+    required this.selectedDay,
+    required this.selectedWeekAnchor,
     required this.selectedMonth,
     required this.selectedRange,
-    required this.query,
-    this.selectedClient,
-    this.selectedPlate,
-    this.selectedRoute,
-    this.availableClients = const <String>[],
-    this.availablePlates = const <String>[],
-    this.availableRoutes = const <String>[],
-    this.filteredTrips = const <TripEntity>[],
-    this.todayTotals = ReportTotals.zero,
-    this.selectedDayTotals = ReportTotals.zero,
-    this.selectedMonthTotals = ReportTotals.zero,
-    this.filteredTotals = ReportTotals.zero,
-    this.monthlyReport,
-    this.dataQuality = ReportDataQuality.zero,
+    this.selectedDriverId,
+    this.selectedTruckId,
+    this.selectedVendorId,
+    this.selectedClientId,
+    this.selectedType,
+    this.drivers = const <ExpenseReportOption>[],
+    this.trucks = const <ExpenseReportOption>[],
+    this.vendors = const <ExpenseReportOption>[],
+    this.clients = const <ExpenseReportOption>[],
+    this.items = const <ExpenseReportItem>[],
+    this.totals = ExpenseReportTotals.zero,
+    this.kpis = BusinessKpis.zero,
+    this.tripsByStatus = const <StatusRow>[],
+    this.expenseTypeBreakdown = const <ExpenseReportOption>[],
+    this.topClients = const <ReportGroupRow>[],
+    this.topVendors = const <ReportGroupRow>[],
+    this.topDrivers = const <ReportGroupRow>[],
+    this.topTrucks = const <ReportGroupRow>[],
+    this.driverPerformance = DriverPerformanceSummary.zero,
+    this.vendorStatement = VendorStatementSummary.zero,
+    this.isPostingVendorPayment = false,
+    this.periodLabel = '',
     this.error,
   });
 
@@ -60,67 +77,87 @@ class ReportsState {
     final today = DateTime(now.year, now.month, now.day);
     return ReportsState(
       isLoading: false,
-      period: ReportPeriod.today,
-      selectedDate: today,
+      period: ExpenseReportPeriod.month,
+      selectedDay: today,
+      selectedWeekAnchor: today,
       selectedMonth: DateTime(now.year, now.month, 1),
       selectedRange: DateTimeRange(
         start: today.subtract(const Duration(days: 6)),
         end: today,
       ),
-      query: '',
     );
   }
 
   ReportsState copyWith({
     bool? isLoading,
-    ReportPeriod? period,
-    DateTime? selectedDate,
+    ExpenseReportPeriod? period,
+    DateTime? selectedDay,
+    DateTime? selectedWeekAnchor,
     DateTime? selectedMonth,
     DateTimeRange? selectedRange,
-    String? query,
-    Object? selectedClient = _sentinel,
-    Object? selectedPlate = _sentinel,
-    Object? selectedRoute = _sentinel,
-    List<String>? availableClients,
-    List<String>? availablePlates,
-    List<String>? availableRoutes,
-    List<TripEntity>? filteredTrips,
-    ReportTotals? todayTotals,
-    ReportTotals? selectedDayTotals,
-    ReportTotals? selectedMonthTotals,
-    ReportTotals? filteredTotals,
-    Object? monthlyReport = _sentinel,
-    ReportDataQuality? dataQuality,
+    Object? selectedDriverId = _sentinel,
+    Object? selectedTruckId = _sentinel,
+    Object? selectedVendorId = _sentinel,
+    Object? selectedClientId = _sentinel,
+    Object? selectedType = _sentinel,
+    List<ExpenseReportOption>? drivers,
+    List<ExpenseReportOption>? trucks,
+    List<ExpenseReportOption>? vendors,
+    List<ExpenseReportOption>? clients,
+    List<ExpenseReportItem>? items,
+    ExpenseReportTotals? totals,
+    BusinessKpis? kpis,
+    List<StatusRow>? tripsByStatus,
+    List<ExpenseReportOption>? expenseTypeBreakdown,
+    List<ReportGroupRow>? topClients,
+    List<ReportGroupRow>? topVendors,
+    List<ReportGroupRow>? topDrivers,
+    List<ReportGroupRow>? topTrucks,
+    DriverPerformanceSummary? driverPerformance,
+    VendorStatementSummary? vendorStatement,
+    bool? isPostingVendorPayment,
+    String? periodLabel,
     Object? error = _sentinel,
   }) {
     return ReportsState(
       isLoading: isLoading ?? this.isLoading,
       period: period ?? this.period,
-      selectedDate: selectedDate ?? this.selectedDate,
+      selectedDay: selectedDay ?? this.selectedDay,
+      selectedWeekAnchor: selectedWeekAnchor ?? this.selectedWeekAnchor,
       selectedMonth: selectedMonth ?? this.selectedMonth,
       selectedRange: selectedRange ?? this.selectedRange,
-      query: query ?? this.query,
-      selectedClient: identical(selectedClient, _sentinel)
-          ? this.selectedClient
-          : selectedClient as String?,
-      selectedPlate: identical(selectedPlate, _sentinel)
-          ? this.selectedPlate
-          : selectedPlate as String?,
-      selectedRoute: identical(selectedRoute, _sentinel)
-          ? this.selectedRoute
-          : selectedRoute as String?,
-      availableClients: availableClients ?? this.availableClients,
-      availablePlates: availablePlates ?? this.availablePlates,
-      availableRoutes: availableRoutes ?? this.availableRoutes,
-      filteredTrips: filteredTrips ?? this.filteredTrips,
-      todayTotals: todayTotals ?? this.todayTotals,
-      selectedDayTotals: selectedDayTotals ?? this.selectedDayTotals,
-      selectedMonthTotals: selectedMonthTotals ?? this.selectedMonthTotals,
-      filteredTotals: filteredTotals ?? this.filteredTotals,
-      monthlyReport: identical(monthlyReport, _sentinel)
-          ? this.monthlyReport
-          : monthlyReport as MonthlyComparisonReport?,
-      dataQuality: dataQuality ?? this.dataQuality,
+      selectedDriverId: identical(selectedDriverId, _sentinel)
+          ? this.selectedDriverId
+          : selectedDriverId as String?,
+      selectedTruckId: identical(selectedTruckId, _sentinel)
+          ? this.selectedTruckId
+          : selectedTruckId as String?,
+      selectedVendorId: identical(selectedVendorId, _sentinel)
+          ? this.selectedVendorId
+          : selectedVendorId as String?,
+      selectedClientId: identical(selectedClientId, _sentinel)
+          ? this.selectedClientId
+          : selectedClientId as String?,
+      selectedType: identical(selectedType, _sentinel)
+          ? this.selectedType
+          : selectedType as String?,
+      drivers: drivers ?? this.drivers,
+      trucks: trucks ?? this.trucks,
+      vendors: vendors ?? this.vendors,
+      clients: clients ?? this.clients,
+      items: items ?? this.items,
+      totals: totals ?? this.totals,
+      kpis: kpis ?? this.kpis,
+      tripsByStatus: tripsByStatus ?? this.tripsByStatus,
+      expenseTypeBreakdown: expenseTypeBreakdown ?? this.expenseTypeBreakdown,
+      topClients: topClients ?? this.topClients,
+      topVendors: topVendors ?? this.topVendors,
+      topDrivers: topDrivers ?? this.topDrivers,
+      topTrucks: topTrucks ?? this.topTrucks,
+      driverPerformance: driverPerformance ?? this.driverPerformance,
+      vendorStatement: vendorStatement ?? this.vendorStatement,
+      isPostingVendorPayment: isPostingVendorPayment ?? this.isPostingVendorPayment,
+      periodLabel: periodLabel ?? this.periodLabel,
       error: identical(error, _sentinel) ? this.error : error as String?,
     );
   }

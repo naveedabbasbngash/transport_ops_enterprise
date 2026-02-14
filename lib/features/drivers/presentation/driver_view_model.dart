@@ -40,25 +40,19 @@ class DriverViewModel extends StateNotifier<DriverState> {
 
   Future<void> createDriver({
     required String name,
-    required String driverType,
-    String? phone,
-    String? residentId,
-    String? vendorId,
-    String? licenseNo,
-    String? licenseExpiry,
-    String? notes,
+    required String phone,
+    required String residentId,
+    required List<int> iqamaBytes,
+    required String iqamaFileName,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createDriver(
         name: name,
-        driverType: driverType,
         phone: phone,
         residentId: residentId,
-        vendorId: vendorId,
-        licenseNo: licenseNo,
-        licenseExpiry: licenseExpiry,
-        notes: notes,
+        iqamaBytes: iqamaBytes,
+        iqamaFileName: iqamaFileName,
       );
       await loadDrivers();
     } catch (_) {

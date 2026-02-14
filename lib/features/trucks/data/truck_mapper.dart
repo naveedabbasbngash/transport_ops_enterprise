@@ -10,8 +10,11 @@ TruckEntity truckFromApi(Map<String, dynamic> map) {
     model: map['model']?.toString(),
     makeYear: map['make_year']?.toString(),
     registrationNumber: map['registration_number']?.toString(),
+    registrationCardUrl: map['registration_card_url']?.toString(),
     ownership: map['ownership']?.toString(),
     vendorId: map['vendor_id']?.toString(),
+    ownerName: map['owner_name']?.toString(),
+    companyName: map['company_name']?.toString(),
     notes: map['notes']?.toString(),
   );
 }

@@ -1,403 +1,536 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
 
-import '../../imports/data/import_local_store.dart';
-import '../../trips/data/trip_local_store.dart';
-import '../../trips/domain/entities/trip_entity.dart';
-import '../data/reports_repository_impl.dart';
-import '../domain/entities/report_models.dart';
-import '../domain/repositories/reports_repository.dart';
-import '../domain/usecases/get_all_report_trips.dart';
-import '../domain/usecases/get_daily_report.dart';
-import '../domain/usecases/get_latest_data_quality.dart';
-import '../domain/usecases/get_monthly_comparison_report.dart';
+import '../../../core/config/api_base_url_store.dart';
+import '../../../core/config/env.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_list_parser.dart';
+import '../../../shared/providers/api_client_provider.dart';
+import '../../auth/data/auth_local_source.dart';
+import '../domain/entities/expense_report_models.dart';
 import 'reports_state.dart';
-
-final _tripLocalStoreProvider = Provider<TripLocalStore>((ref) {
-  return TripLocalStore();
-});
-
-final _importLocalStoreProvider = Provider<ImportLocalStore>((ref) {
-  return ImportLocalStore();
-});
-
-final _reportsRepositoryProvider = Provider<ReportsRepository>((ref) {
-  return ReportsRepositoryImpl(
-    tripLocalStore: ref.watch(_tripLocalStoreProvider),
-    importLocalStore: ref.watch(_importLocalStoreProvider),
-  );
-});
-
-final _getDailyReportProvider = Provider<GetDailyReport>((ref) {
-  return GetDailyReport(ref.watch(_reportsRepositoryProvider));
-});
-
-final _getMonthlyComparisonProvider = Provider<GetMonthlyComparisonReport>((ref) {
-  return GetMonthlyComparisonReport(ref.watch(_reportsRepositoryProvider));
-});
-
-final _getLatestDataQualityProvider = Provider<GetLatestDataQuality>((ref) {
-  return GetLatestDataQuality(ref.watch(_reportsRepositoryProvider));
-});
-
-final _getAllReportTripsProvider = Provider<GetAllReportTrips>((ref) {
-  return GetAllReportTrips(ref.watch(_reportsRepositoryProvider));
-});
 
 final reportsViewModelProvider =
     StateNotifierProvider<ReportsViewModel, ReportsState>(
   (ref) => ReportsViewModel(
-    getDailyReport: ref.watch(_getDailyReportProvider),
-    getMonthlyComparisonReport: ref.watch(_getMonthlyComparisonProvider),
-    getLatestDataQuality: ref.watch(_getLatestDataQualityProvider),
-    getAllReportTrips: ref.watch(_getAllReportTripsProvider),
-  ),
+    apiClient: ref.watch(apiClientProvider),
+  )..initialize(),
 );
 
 class ReportsViewModel extends StateNotifier<ReportsState> {
   ReportsViewModel({
-    required GetDailyReport getDailyReport,
-    required GetMonthlyComparisonReport getMonthlyComparisonReport,
-    required GetLatestDataQuality getLatestDataQuality,
-    required GetAllReportTrips getAllReportTrips,
-  })  : _getDailyReport = getDailyReport,
-        _getMonthlyComparisonReport = getMonthlyComparisonReport,
-        _getLatestDataQuality = getLatestDataQuality,
-        _getAllReportTrips = getAllReportTrips,
-        super(ReportsState.initial()) {
-    refresh();
-  }
+    required ApiClient apiClient,
+  })  : _apiClient = apiClient,
+        super(ReportsState.initial());
 
-  final GetDailyReport _getDailyReport;
-  final GetMonthlyComparisonReport _getMonthlyComparisonReport;
-  final GetLatestDataQuality _getLatestDataQuality;
-  final GetAllReportTrips _getAllReportTrips;
+  final ApiClient _apiClient;
 
-  List<TripEntity> _allTrips = const <TripEntity>[];
+  static const List<String> expenseTypes = <String>[
+    'fuel',
+    'toll',
+    'repair',
+    'parking',
+    'penalty',
+    'office_misc',
+  ];
 
-  Future<void> refresh() async {
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-    );
-
+  Future<void> initialize() async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      final now = DateTime.now();
-      final todayDate = DateTime(now.year, now.month, now.day);
-
-      final quality = await _getLatestDataQuality();
-      final todayDaily = await _getDailyReport(todayDate);
-      final selectedDaily = await _getDailyReport(state.selectedDate);
-      final monthly = await _getMonthlyComparisonReport(state.selectedMonth);
-      _allTrips = await _getAllReportTrips();
-
-      final clients = _distinct(
-        _allTrips.map((trip) => trip.clientName),
-      );
-      final plates = _distinct(
-        _allTrips.map((trip) => trip.plateNo),
-      );
-      final routes = _distinct(
-        _allTrips.map((trip) => '${trip.fromLocation} -> ${trip.toLocation}'),
-      );
-
-      state = state.copyWith(
-        isLoading: false,
-        todayTotals: todayDaily.totals,
-        selectedDayTotals: selectedDaily.totals,
-        selectedMonthTotals: monthly.currentMonthTotals,
-        monthlyReport: monthly,
-        dataQuality: quality,
-        availableClients: clients,
-        availablePlates: plates,
-        availableRoutes: routes,
-        error: null,
-      );
-
-      _applyFilters();
+      await Future.wait([
+        _loadFilterOptions(),
+        loadReport(),
+      ]);
+      state = state.copyWith(isLoading: false);
     } catch (e) {
-      debugPrint('Failed to load reports: $e');
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to load reports.',
+        error: _toMessage(e),
       );
     }
   }
 
-  Future<void> setPeriod(ReportPeriod period) async {
-    state = state.copyWith(period: period);
-    _applyFilters();
+  Future<void> refresh() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await loadReport();
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: _toMessage(e),
+      );
+    }
   }
 
-  Future<void> setDate(DateTime date) async {
-    state = state.copyWith(
-      selectedDate: DateTime(date.year, date.month, date.day),
-    );
+  Future<void> setPeriod(ExpenseReportPeriod period) async {
+    state = state.copyWith(period: period);
+    await refresh();
+  }
+
+  Future<void> setDay(DateTime date) async {
+    state = state.copyWith(selectedDay: _toDate(date));
+    await refresh();
+  }
+
+  Future<void> setWeekAnchor(DateTime date) async {
+    state = state.copyWith(selectedWeekAnchor: _toDate(date));
     await refresh();
   }
 
   Future<void> setMonth(DateTime month) async {
-    state = state.copyWith(
-      selectedMonth: DateTime(month.year, month.month, 1),
-    );
+    state = state.copyWith(selectedMonth: DateTime(month.year, month.month, 1));
     await refresh();
   }
 
   Future<void> setRange(DateTimeRange range) async {
     state = state.copyWith(
-      selectedRange: range,
+      selectedRange: DateTimeRange(
+        start: _toDate(range.start),
+        end: _toDate(range.end),
+      ),
     );
-    _applyFilters();
+    await refresh();
   }
 
-  void setQuery(String query) {
-    state = state.copyWith(query: query);
-    _applyFilters();
+  Future<void> setDriver(String? value) async {
+    state = state.copyWith(selectedDriverId: value);
+    await refresh();
   }
 
-  void setClient(String? client) {
-    state = state.copyWith(selectedClient: client);
-    _applyFilters();
+  Future<void> setTruck(String? value) async {
+    state = state.copyWith(selectedTruckId: value);
+    await refresh();
   }
 
-  void setPlate(String? plate) {
-    state = state.copyWith(selectedPlate: plate);
-    _applyFilters();
+  Future<void> setVendor(String? value) async {
+    state = state.copyWith(selectedVendorId: value);
+    await refresh();
   }
 
-  void setRoute(String? route) {
-    state = state.copyWith(selectedRoute: route);
-    _applyFilters();
+  Future<void> setClient(String? value) async {
+    state = state.copyWith(selectedClientId: value);
+    await refresh();
   }
 
-  void clearFilters() {
+  Future<void> setType(String? value) async {
+    state = state.copyWith(selectedType: value);
+    await refresh();
+  }
+
+  Future<void> clearFilters() async {
     state = state.copyWith(
-      query: '',
-      selectedClient: null,
-      selectedPlate: null,
-      selectedRoute: null,
+      selectedDriverId: null,
+      selectedTruckId: null,
+      selectedVendorId: null,
+      selectedClientId: null,
+      selectedType: null,
     );
-    _applyFilters();
+    await refresh();
   }
 
-  String buildSummaryText() {
-    final money = NumberFormat.currency(symbol: 'SAR ', decimalDigits: 0);
-    final totals = state.filteredTotals;
+  Future<Uri?> buildExportUri() async {
+    final token = await AuthLocalSource.getToken();
+    if (token == null || token.isEmpty) return null;
 
-    return '''
-TransportOps Report Summary
-Period: ${_periodLabel()}
+    final baseUrl = await ApiBaseUrlStore.get() ?? Env.apiBaseUrl;
+    final rawBase = baseUrl.endsWith('/api')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
 
-Filtered Totals:
-- Trips: ${totals.tripCount}
-- Revenue: ${money.format(totals.revenue)}
-- Vendor Cost: ${money.format(totals.vendorCost)}
-- Other Cost: ${money.format(totals.otherCost)}
-- Profit: ${money.format(totals.profit)}
-
-Baseline:
-- Today Trips: ${state.todayTotals.tripCount}
-- Selected Day Trips: ${state.selectedDayTotals.tripCount}
-- Selected Month Trips: ${state.selectedMonthTotals.tripCount}
-
-Data Quality:
-- Updated (not applied): ${state.dataQuality.updatedNotApplied}
-- Needs review: ${state.dataQuality.needsReview}
-- Error rows: ${state.dataQuality.errorRows}
-'''.trim();
+    return Uri.parse('$rawBase/api/reports/expenses/export-download').replace(
+      queryParameters: <String, String>{
+        ..._buildQuery().map((k, v) => MapEntry(k, v.toString())),
+        'token': token,
+      },
+    );
   }
 
-  String _periodLabel() {
-    switch (state.period) {
-      case ReportPeriod.today:
-        return 'Today';
-      case ReportPeriod.day:
-        return DateFormat('yyyy-MM-dd').format(state.selectedDate);
-      case ReportPeriod.month:
-        return DateFormat('yyyy-MM').format(state.selectedMonth);
-      case ReportPeriod.range:
-        return '${DateFormat('yyyy-MM-dd').format(state.selectedRange.start)} to '
-            '${DateFormat('yyyy-MM-dd').format(state.selectedRange.end)}';
+  Future<Uri?> buildVendorStatementExportUri() async {
+    final vendorId = state.selectedVendorId;
+    if (vendorId == null || vendorId.isEmpty) return null;
+    final token = await AuthLocalSource.getToken();
+    if (token == null || token.isEmpty) return null;
+
+    final baseUrl = await ApiBaseUrlStore.get() ?? Env.apiBaseUrl;
+    final rawBase = baseUrl.endsWith('/api')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
+
+    return Uri.parse('$rawBase/api/reports/vendors/statement/export-download').replace(
+      queryParameters: <String, String>{
+        ..._buildQuery().map((k, v) => MapEntry(k, v.toString())),
+        'vendor_id': vendorId,
+        'token': token,
+      },
+    );
+  }
+
+  Future<void> loadReport() async {
+    final response = await _apiClient.getJson(
+      'reports/expenses',
+      query: _buildQuery(),
+    );
+
+    final data = _asMap(response['data']);
+    final totalsMap = _asMap(data['totals']);
+    final byType = _asMap(totalsMap['by_type']);
+    final itemsRaw = data['items'] is List
+        ? (data['items'] as List)
+        : extractListFromResponse(response);
+
+    final items = itemsRaw
+        .whereType<Map>()
+        .map((raw) => raw.cast<String, dynamic>())
+        .map(_mapItem)
+        .toList();
+
+    state = state.copyWith(
+      items: items,
+      periodLabel: _asMap(data['period'])['label']?.toString() ?? '',
+      totals: ExpenseReportTotals(
+        count: _toInt(totalsMap['count']),
+        totalAmount: _toDouble(totalsMap['total_amount']),
+        fuel: _toDouble(byType['fuel']),
+        toll: _toDouble(byType['toll']),
+        repair: _toDouble(byType['repair']),
+        parking: _toDouble(byType['parking']),
+        penalty: _toDouble(byType['penalty']),
+        officeMisc: _toDouble(byType['office_misc']),
+      ),
+      error: null,
+    );
+
+    await _loadBusinessOverview();
+    await _loadOperationalDetails();
+  }
+
+  Future<void> postVendorPayment({
+    required String amount,
+    String? notes,
+  }) async {
+    final vendorId = state.selectedVendorId;
+    if (vendorId == null || vendorId.isEmpty) {
+      throw Exception('Select provider first.');
+    }
+    final parsed = double.tryParse(amount.trim());
+    if (parsed == null || parsed <= 0) {
+      throw Exception('Enter valid amount.');
+    }
+
+    state = state.copyWith(isPostingVendorPayment: true, error: null);
+    try {
+      final body = <String, dynamic>{
+        ..._buildQuery(),
+        'vendor_id': vendorId,
+        'amount': parsed,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      };
+      await _apiClient.postJson('reports/vendors/settlements', body: body);
+      await refresh();
+    } finally {
+      state = state.copyWith(isPostingVendorPayment: false);
     }
   }
 
-  void _applyFilters() {
-    final lowerQuery = state.query.trim().toLowerCase();
-    final filtered = <TripEntity>[];
+  Map<String, dynamic> _buildQuery() {
+    final query = <String, dynamic>{};
+    switch (state.period) {
+      case ExpenseReportPeriod.day:
+        query['period'] = 'day';
+        query['day'] = _fmtDate(state.selectedDay);
+        break;
+      case ExpenseReportPeriod.week:
+        query['period'] = 'week';
+        query['week_date'] = _fmtDate(state.selectedWeekAnchor);
+        break;
+      case ExpenseReportPeriod.month:
+        query['period'] = 'month';
+        query['month'] = DateFormat('yyyy-MM').format(state.selectedMonth);
+        break;
+      case ExpenseReportPeriod.range:
+        query['period'] = 'range';
+        query['from_date'] = _fmtDate(state.selectedRange.start);
+        query['to_date'] = _fmtDate(state.selectedRange.end);
+        break;
+    }
 
-    for (final trip in _allTrips) {
-      final date = _parseTripDate(
-        raw: trip.tripDate,
-        reportingMonth: trip.reportingMonth,
+    if (state.selectedDriverId != null && state.selectedDriverId!.isNotEmpty) {
+      query['driver_id'] = state.selectedDriverId!;
+    }
+    if (state.selectedTruckId != null && state.selectedTruckId!.isNotEmpty) {
+      query['truck_id'] = state.selectedTruckId!;
+    }
+    if (state.selectedVendorId != null && state.selectedVendorId!.isNotEmpty) {
+      query['vendor_id'] = state.selectedVendorId!;
+    }
+    if (state.selectedClientId != null && state.selectedClientId!.isNotEmpty) {
+      query['client_id'] = state.selectedClientId!;
+    }
+    if (state.selectedType != null && state.selectedType!.isNotEmpty) {
+      query['type'] = state.selectedType!;
+    }
+
+    return query;
+  }
+
+  Future<void> _loadFilterOptions() async {
+    final responses = await Future.wait([
+      _apiClient.getJson('drivers', query: const {'status': 'active'}),
+      _apiClient.getJson('trucks', query: const {'status': 'active'}),
+      _apiClient.getJson('vendors', query: const {'status': 'active'}),
+      _apiClient.getJson('clients', query: const {'status': 'active'}),
+    ]);
+
+    final drivers = extractListFromResponse(responses[0])
+        .map((item) => ExpenseReportOption(
+              id: item['id']?.toString() ?? '',
+              label: item['name']?.toString() ?? '',
+            ))
+        .where((item) => item.id.isNotEmpty && item.label.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+
+    final trucks = extractListFromResponse(responses[1])
+        .map((item) => ExpenseReportOption(
+              id: item['id']?.toString() ?? '',
+              label: item['plate_no']?.toString() ?? '',
+            ))
+        .where((item) => item.id.isNotEmpty && item.label.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+
+    final vendors = extractListFromResponse(responses[2])
+        .map((item) => ExpenseReportOption(
+              id: item['id']?.toString() ?? '',
+              label: item['name']?.toString() ?? '',
+            ))
+        .where((item) => item.id.isNotEmpty && item.label.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+
+    final clients = extractListFromResponse(responses[3])
+        .map((item) => ExpenseReportOption(
+              id: item['id']?.toString() ?? '',
+              label: item['name']?.toString() ?? '',
+            ))
+        .where((item) => item.id.isNotEmpty && item.label.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+
+    state = state.copyWith(
+      drivers: drivers,
+      trucks: trucks,
+      vendors: vendors,
+      clients: clients,
+    );
+  }
+
+  Future<void> _loadBusinessOverview() async {
+    final response = await _apiClient.getJson(
+      'reports/overview',
+      query: _buildQuery(),
+    );
+    final data = _asMap(response['data']);
+    final kpis = _asMap(data['kpis']);
+    final breakdowns = _asMap(data['breakdowns']);
+
+    final expenseByTypeRaw = breakdowns['expense_by_type'] is List
+        ? (breakdowns['expense_by_type'] as List)
+        : const <dynamic>[];
+    final expenseByType = expenseByTypeRaw
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .map(
+          (e) => ExpenseReportOption(
+            id: e['type']?.toString() ?? '',
+            label:
+                '${e['type']?.toString() ?? 'unknown'}: ${_toDouble(e['amount']).toStringAsFixed(2)}',
+          ),
+        )
+        .toList();
+
+    state = state.copyWith(
+      kpis: BusinessKpis(
+        tripCount: _toInt(kpis['trip_count']),
+        revenue: _toDouble(kpis['revenue']),
+        vendorCost: _toDouble(kpis['vendor_cost']),
+        otherCost: _toDouble(kpis['other_cost']),
+        expectedProfit: _toDouble(kpis['expected_profit']),
+        expenseCount: _toInt(kpis['expense_count']),
+        totalExpense: _toDouble(kpis['total_expense']),
+        paymentsReceived: _toDouble(kpis['payments_received']),
+        invoiceTotal: _toDouble(kpis['invoice_total']),
+        invoicePaid: _toDouble(kpis['invoice_paid']),
+        invoiceOutstanding: _toDouble(kpis['invoice_outstanding']),
+        netProfitAfterExpenses: _toDouble(kpis['net_profit_after_expenses']),
+      ),
+      tripsByStatus: _mapStatusRows(breakdowns['trips_by_status']),
+      expenseTypeBreakdown: expenseByType,
+      topClients: _mapGroupRows(breakdowns['top_clients']),
+      topVendors: _mapGroupRows(breakdowns['top_vendors']),
+      topDrivers: _mapGroupRows(breakdowns['top_drivers']),
+      topTrucks: _mapGroupRows(breakdowns['top_trucks']),
+    );
+  }
+
+  Future<void> _loadOperationalDetails() async {
+    DriverPerformanceSummary driverPerformance = DriverPerformanceSummary.zero;
+    VendorStatementSummary vendorStatement = VendorStatementSummary.zero;
+
+    if (state.selectedDriverId != null && state.selectedDriverId!.isNotEmpty) {
+      final response = await _apiClient.getJson(
+        'reports/drivers/performance',
+        query: <String, dynamic>{
+          ..._buildQuery(),
+          'driver_id': state.selectedDriverId!,
+        },
       );
-      if (date == null) continue;
+      final data = _asMap(response['data']);
+      final summary = _asMap(data['summary']);
+      final expenseByTypeRaw = data['expense_by_type'] is List
+          ? (data['expense_by_type'] as List)
+          : const <dynamic>[];
+      final expenseByType = expenseByTypeRaw
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .map(
+            (e) => ExpenseReportOption(
+              id: e['type']?.toString() ?? '',
+              label:
+                  '${e['type']?.toString() ?? 'unknown'}: ${_toDouble(e['amount']).toStringAsFixed(2)}',
+            ),
+          )
+          .toList();
+      driverPerformance = DriverPerformanceSummary(
+        tripCount: _toInt(summary['trip_count']),
+        revenue: _toDouble(summary['revenue']),
+        vendorCost: _toDouble(summary['vendor_cost']),
+        otherCost: _toDouble(summary['other_cost']),
+        expectedProfit: _toDouble(summary['expected_profit']),
+        driverExpenseTotal: _toDouble(summary['driver_expense_total']),
+        profitAfterDriverExpenses: _toDouble(summary['profit_after_driver_expenses']),
+        expenseByType: expenseByType,
+      );
+    }
 
-      if (!_matchesPeriod(date: date, trip: trip)) continue;
-      if (state.selectedClient != null && trip.clientName != state.selectedClient) {
-        continue;
-      }
-      if (state.selectedPlate != null && trip.plateNo != state.selectedPlate) {
-        continue;
-      }
-      final routeLabel = '${trip.fromLocation} -> ${trip.toLocation}';
-      if (state.selectedRoute != null && routeLabel != state.selectedRoute) {
-        continue;
-      }
-      if (lowerQuery.isNotEmpty) {
-        final haystack = [
-          trip.clientName,
-          trip.tripDate,
-          trip.waybillNo,
-          trip.plateNo,
-          trip.fromLocation,
-          trip.toLocation,
-          trip.driverName,
-          trip.vehicleType,
-          trip.remarks,
-        ].join(' ').toLowerCase();
-        if (!haystack.contains(lowerQuery)) continue;
-      }
-
-      filtered.add(trip);
+    if (state.selectedVendorId != null && state.selectedVendorId!.isNotEmpty) {
+      final response = await _apiClient.getJson(
+        'reports/vendors/statement',
+        query: <String, dynamic>{
+          ..._buildQuery(),
+          'vendor_id': state.selectedVendorId!,
+        },
+      );
+      final data = _asMap(response['data']);
+      final summary = _asMap(data['summary']);
+      final rawItems = data['items'] is List ? (data['items'] as List) : const <dynamic>[];
+      final mapped = rawItems
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .map(
+            (e) => ReportGroupRow(
+              id: e['trip_id']?.toString(),
+              label:
+                  '${e['trip_date']?.toString() ?? ''} | ${(e['route']?.toString() ?? '').trim()}',
+              tripCount: 1,
+              amount: _toDouble(e['balance']),
+            ),
+          )
+          .toList();
+      vendorStatement = VendorStatementSummary(
+        tripCount: _toInt(summary['trip_count']),
+        grossPayable: _toDouble(summary['gross_payable']),
+        paid: _toDouble(summary['paid']),
+        balance: _toDouble(summary['balance']),
+        items: mapped,
+      );
     }
 
     state = state.copyWith(
-      filteredTrips: filtered,
-      filteredTotals: _totals(filtered),
+      driverPerformance: driverPerformance,
+      vendorStatement: vendorStatement,
     );
   }
 
-  bool _matchesPeriod({
-    required DateTime date,
-    required TripEntity trip,
-  }) {
-    switch (state.period) {
-      case ReportPeriod.today:
-        final now = DateTime.now();
-        return date.year == now.year && date.month == now.month && date.day == now.day;
-      case ReportPeriod.day:
-        return date.year == state.selectedDate.year &&
-            date.month == state.selectedDate.month &&
-            date.day == state.selectedDate.day;
-      case ReportPeriod.month:
-        final parsedReportingMonth = _parseReportingMonth(trip.reportingMonth);
-        if (parsedReportingMonth != null) {
-          return parsedReportingMonth.year == state.selectedMonth.year &&
-              parsedReportingMonth.month == state.selectedMonth.month;
-        }
-        return date.year == state.selectedMonth.year &&
-            date.month == state.selectedMonth.month;
-      case ReportPeriod.range:
-        final start = DateTime(
-          state.selectedRange.start.year,
-          state.selectedRange.start.month,
-          state.selectedRange.start.day,
-        );
-        final end = DateTime(
-          state.selectedRange.end.year,
-          state.selectedRange.end.month,
-          state.selectedRange.end.day,
-          23,
-          59,
-          59,
-        );
-        return !date.isBefore(start) && !date.isAfter(end);
-    }
+  List<StatusRow> _mapStatusRows(dynamic raw) {
+    if (raw is! List) return const <StatusRow>[];
+    return raw
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .map(
+          (e) => StatusRow(
+            status: e['status']?.toString() ?? 'unknown',
+            total: _toInt(e['total']),
+          ),
+        )
+        .toList();
   }
 
-  ReportTotals _totals(List<TripEntity> trips) {
-    var revenue = 0.0;
-    var vendorCost = 0.0;
-    var otherCost = 0.0;
+  List<ReportGroupRow> _mapGroupRows(dynamic raw) {
+    if (raw is! List) return const <ReportGroupRow>[];
+    return raw
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .map(
+          (e) => ReportGroupRow(
+            id: e['id']?.toString(),
+            label: e['label']?.toString() ?? 'Unknown',
+            tripCount: _toInt(e['trip_count']),
+            amount: _toDouble(e['amount']),
+          ),
+        )
+        .toList();
+  }
 
-    for (final trip in trips) {
-      revenue += trip.tripAmount;
-      vendorCost += trip.vendorCost;
-      otherCost += trip.companyOtherCost;
-    }
-
-    return ReportTotals(
-      tripCount: trips.length,
-      revenue: revenue,
-      vendorCost: vendorCost,
-      otherCost: otherCost,
-      profit: revenue - vendorCost - otherCost,
+  ExpenseReportItem _mapItem(Map<String, dynamic> raw) {
+    return ExpenseReportItem(
+      id: raw['id']?.toString() ?? '',
+      expenseDate: raw['expense_date']?.toString() ?? '',
+      type: raw['type']?.toString() ?? '',
+      amount: _toDouble(raw['amount']),
+      driverName: raw['driver_name']?.toString(),
+      truckPlateNo: raw['truck_plate_no']?.toString(),
+      vendorName: raw['vendor_name']?.toString(),
+      tripId: raw['trip_id']?.toString(),
+      notes: raw['notes']?.toString(),
     );
   }
 
-  List<String> _distinct(Iterable<String> values) {
-    final set = <String>{};
-    for (final value in values) {
-      final v = value.trim();
-      if (v.isEmpty) continue;
-      set.add(v);
-    }
-    final list = set.toList()..sort();
-    return list;
+  Map<String, dynamic> _asMap(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return raw.cast<String, dynamic>();
+    return <String, dynamic>{};
   }
 
-  DateTime? _parseTripDate({
-    required String raw,
-    required String reportingMonth,
-  }) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
+  DateTime _toDate(DateTime raw) => DateTime(raw.year, raw.month, raw.day);
 
-    final iso = DateTime.tryParse(trimmed);
-    if (iso != null) return DateTime(iso.year, iso.month, iso.day);
-
-    final normalized = trimmed.replaceAll('/', '-');
-    final parts = normalized.split('-');
-    if (parts.length != 3) return null;
-
-    final first = int.tryParse(parts[0]);
-    final second = int.tryParse(parts[1]);
-    final third = int.tryParse(parts[2]);
-    if (first == null || second == null || third == null) return null;
-
-    DateTime? dmy;
-    DateTime? mdy;
-
-    if (third >= 1900 && second >= 1 && second <= 12 && first >= 1 && first <= 31) {
-      dmy = DateTime(third, second, first);
-    }
-
-    if (third >= 1900 && first >= 1 && first <= 12 && second >= 1 && second <= 31) {
-      mdy = DateTime(third, first, second);
-    }
-
-    if (dmy != null && mdy == null) return dmy;
-    if (mdy != null && dmy == null) return mdy;
-    if (dmy == null && mdy == null) return null;
-
-    final parsedReportingMonth = _parseReportingMonth(reportingMonth);
-    if (parsedReportingMonth != null) {
-      if (dmy != null &&
-          dmy.year == parsedReportingMonth.year &&
-          dmy.month == parsedReportingMonth.month) {
-        return dmy;
-      }
-      if (mdy != null &&
-          mdy.year == parsedReportingMonth.year &&
-          mdy.month == parsedReportingMonth.month) {
-        return mdy;
-      }
-    }
-
-    return dmy ?? mdy;
+  String _fmtDate(DateTime date) {
+    final yyyy = date.year.toString().padLeft(4, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
   }
 
-  DateTime? _parseReportingMonth(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
+  int _toInt(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 0;
+  }
 
-    final parts = trimmed.split('-');
-    if (parts.length != 2) return null;
-    final year = int.tryParse(parts[0]);
-    final month = int.tryParse(parts[1]);
-    if (year == null || month == null || month < 1 || month > 12) return null;
-    return DateTime(year, month, 1);
+  double _toDouble(dynamic raw) {
+    if (raw is double) return raw;
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '') ?? 0;
+  }
+
+  String _toMessage(Object error) {
+    final raw = error.toString();
+    final compact = raw.replaceAll('\n', ' ');
+    log('Reports error', name: 'Reports', error: compact);
+    return compact.length > 180 ? '${compact.substring(0, 180)}...' : compact;
   }
 }

@@ -9,9 +9,7 @@ import '../../../core/network/api_health_check.dart';
 class AuthRepositoryImpl implements AuthRepository {
   final AuthApi _authApi;
 
-  const AuthRepositoryImpl({
-    required AuthApi authApi,
-  }) : _authApi = authApi;
+  const AuthRepositoryImpl({required AuthApi authApi}) : _authApi = authApi;
 
   @override
   Future<AuthLoginResult> login({
@@ -19,14 +17,12 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     final cachedBaseUrl = await ApiBaseUrlStore.get();
-    final resolvedBaseUrl =
-        cachedBaseUrl ??
-        await ApiHealthCheck.detectWorkingBaseUrl(
-          Env.apiBaseUrlCandidates,
-        ) ??
-        Env.apiBaseUrl;
+    final detectedBaseUrl = await ApiHealthCheck.detectWorkingBaseUrl(
+      Env.apiBaseUrlCandidates,
+    );
+    final resolvedBaseUrl = detectedBaseUrl ?? cachedBaseUrl ?? Env.apiBaseUrl;
 
-    if (cachedBaseUrl == null) {
+    if (cachedBaseUrl != resolvedBaseUrl) {
       await ApiBaseUrlStore.save(resolvedBaseUrl);
     }
 
@@ -42,13 +38,17 @@ class AuthRepositoryImpl implements AuthRepository {
     final message = (body['message'] ?? 'Unable to login').toString();
 
     if (status == 'success' && code == 'AUTH_LOGIN_SUCCESS') {
-      final data = (body['data'] as Map?)?.cast<String, dynamic>() ??
+      final data =
+          (body['data'] as Map?)?.cast<String, dynamic>() ??
           <String, dynamic>{};
-      final token = (data['token'] as Map?)?.cast<String, dynamic>() ??
+      final token =
+          (data['token'] as Map?)?.cast<String, dynamic>() ??
           <String, dynamic>{};
-      final userMap = (data['user'] as Map?)?.cast<String, dynamic>() ??
+      final userMap =
+          (data['user'] as Map?)?.cast<String, dynamic>() ??
           <String, dynamic>{};
-      final company = (data['company'] as Map?)?.cast<String, dynamic>() ??
+      final company =
+          (data['company'] as Map?)?.cast<String, dynamic>() ??
           <String, dynamic>{};
 
       final accessToken = (token['access_token'] ?? '').toString();
