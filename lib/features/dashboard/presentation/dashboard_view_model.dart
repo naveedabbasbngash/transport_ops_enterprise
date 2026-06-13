@@ -1,3 +1,6 @@
+import '../../../core/config/api_base_url_store.dart';
+import '../../../core/config/env.dart';
+import '../../auth/data/auth_local_source.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 
@@ -41,6 +44,20 @@ class DashboardViewModel extends StateNotifier<DashboardState> {
     if (period == state.period) return;
     state = state.copyWith(period: period);
     await loadSummary();
+  }
+
+  Future<Uri?> buildContactsExportUri() async {
+    final token = await AuthLocalSource.getToken();
+    if (token == null || token.isEmpty) return null;
+
+    final baseUrl = await ApiBaseUrlStore.get() ?? Env.apiBaseUrl;
+    final rawBase = baseUrl.endsWith('/api')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
+
+    return Uri.parse(
+      '$rawBase/api/reports/contacts/export-download',
+    ).replace(queryParameters: <String, String>{'token': token});
   }
 }
 

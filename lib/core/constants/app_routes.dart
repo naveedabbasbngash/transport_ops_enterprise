@@ -11,6 +11,7 @@ class AppRoutes {
   static const tripCreate = '/trips/create';
   static const tripDetail = '/trips/detail';
   static const tripEdit = '/trips/edit';
+  static const tripDuplicate = '/trips/duplicate';
   static const imports = '/imports';
   static const reports = '/reports';
   static const dailySummary = '/daily-summary';

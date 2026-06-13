@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../auth/presentation/auth_view_model.dart';
+import '../domain/entities/driver_entity.dart';
 import 'driver_state.dart';
 import 'driver_view_model.dart';
 
@@ -47,110 +48,138 @@ class DriverListScreen extends ConsumerWidget {
                   ref.read(driverViewModelProvider.notifier).loadDrivers(),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: AppSpacing.page,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1200),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _Hero(
-                          title: 'Driver Directory',
-                          subtitle: isReadOnly
-                              ? 'Read only access'
-                              : 'Edit enabled',
-                          tag: '${state.drivers.length} total drivers',
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        _Filters(
-                          search: state.search,
-                          status: state.status,
-                          onSearchChanged: (value) => ref
-                              .read(driverViewModelProvider.notifier)
-                              .updateSearch(value),
-                          onStatusChanged: (value) => ref
-                              .read(driverViewModelProvider.notifier)
-                              .updateStatus(value),
-                          onApply: () => ref
-                              .read(driverViewModelProvider.notifier)
-                              .applyFilters(),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final wide = constraints.maxWidth >= 760;
-                            if (wide) {
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Active',
-                                      value: '$activeCount',
-                                      color: AppColors.successGreen,
-                                      icon: Icons.check_circle_rounded,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Blocked',
-                                      value: '$blockedCount',
-                                      color: AppColors.dangerRed,
-                                      icon: Icons.block_rounded,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Vendor Type',
-                                      value: '$vendorTypeCount',
-                                      color: AppColors.primaryBlue,
-                                      icon: Icons.storefront_rounded,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }
-                            return Column(
-                              children: [
-                                _MetricCard(
-                                  label: 'Active',
-                                  value: '$activeCount',
-                                  color: AppColors.successGreen,
-                                  icon: Icons.check_circle_rounded,
-                                ),
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: AppSpacing.page,
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1200),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Hero(
+                                title: 'Driver Directory',
+                                subtitle: isReadOnly
+                                    ? 'Read only access'
+                                    : 'Edit enabled',
+                                tag: '${state.drivers.length} total drivers',
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _Filters(
+                                search: state.search,
+                                status: state.status,
+                                onSearchChanged: (value) => ref
+                                    .read(driverViewModelProvider.notifier)
+                                    .updateSearch(value),
+                                onStatusChanged: (value) => ref
+                                    .read(driverViewModelProvider.notifier)
+                                    .updateStatus(value),
+                                onApply: () => ref
+                                    .read(driverViewModelProvider.notifier)
+                                    .applyFilters(),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final wide = constraints.maxWidth >= 760;
+                                  if (wide) {
+                                    return Row(
+                                      children: [
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Active',
+                                            value: '$activeCount',
+                                            color: AppColors.successGreen,
+                                            icon: Icons.check_circle_rounded,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Blocked',
+                                            value: '$blockedCount',
+                                            color: AppColors.dangerRed,
+                                            icon: Icons.block_rounded,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Vendor Type',
+                                            value: '$vendorTypeCount',
+                                            color: AppColors.primaryBlue,
+                                            icon: Icons.storefront_rounded,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                  return Column(
+                                    children: [
+                                      _MetricCard(
+                                        label: 'Active',
+                                        value: '$activeCount',
+                                        color: AppColors.successGreen,
+                                        icon: Icons.check_circle_rounded,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _MetricCard(
+                                        label: 'Blocked',
+                                        value: '$blockedCount',
+                                        color: AppColors.dangerRed,
+                                        icon: Icons.block_rounded,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _MetricCard(
+                                        label: 'Vendor Type',
+                                        value: '$vendorTypeCount',
+                                        color: AppColors.primaryBlue,
+                                        icon: Icons.storefront_rounded,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              if (state.error != null)
+                                _ErrorBanner(message: state.error!),
+                              if (state.isLoading && state.drivers.isEmpty) ...[
                                 const SizedBox(height: 10),
-                                _MetricCard(
-                                  label: 'Blocked',
-                                  value: '$blockedCount',
-                                  color: AppColors.dangerRed,
-                                  icon: Icons.block_rounded,
-                                ),
-                                const SizedBox(height: 10),
-                                _MetricCard(
-                                  label: 'Vendor Type',
-                                  value: '$vendorTypeCount',
-                                  color: AppColors.primaryBlue,
-                                  icon: Icons.storefront_rounded,
-                                ),
+                                const LinearProgressIndicator(minHeight: 2),
                               ],
-                            );
-                          },
+                              const SizedBox(height: AppSpacing.md),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
-                        if (state.error != null)
-                          _ErrorBanner(message: state.error!),
-                        if (state.isLoading) ...[
-                          const SizedBox(height: 10),
-                          const LinearProgressIndicator(minHeight: 2),
-                        ],
-                        const SizedBox(height: AppSpacing.md),
-                        _ListPanel(state: state),
-                      ],
+                      ),
                     ),
                   ),
-                ),
+                  SliverPadding(
+                    padding: AppSpacing.page,
+                    sliver: _ListPanel(
+                      state: state,
+                      onEdit: (driver, payload) async {
+                        await ref
+                            .read(driverViewModelProvider.notifier)
+                            .updateDriver(
+                              id: driver.id,
+                              name: payload.name,
+                              phone: payload.phone,
+                              residentId: payload.residentId,
+                              iqamaBytes: payload.iqamaBytes,
+                              iqamaFileName: payload.iqamaFileName,
+                            );
+                      },
+                      onDelete: (id) async {
+                        await ref
+                            .read(driverViewModelProvider.notifier)
+                            .deleteDriver(id);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -343,87 +372,154 @@ class _MetricCard extends StatelessWidget {
 
 class _ListPanel extends StatelessWidget {
   final DriverState state;
+  final Future<void> Function(DriverEntity driver, _CreateDriverPayload payload)
+  onEdit;
+  final Future<void> Function(String id) onDelete;
 
-  const _ListPanel({required this.state});
+  const _ListPanel({
+    required this.state,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.drivers.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SliverToBoxAdapter(
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (state.drivers.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black12),
-        ),
-        child: const Text(
-          'No drivers found.',
-          style: TextStyle(color: Colors.black54),
+      return SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: const Text(
+            'No drivers found.',
+            style: TextStyle(color: Colors.black54),
+          ),
         ),
       );
     }
 
-    return Column(
-      children: state.drivers.map((driver) {
+    final itemCount = state.drivers.length * 2 - 1;
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index.isOdd) {
+          return const SizedBox(height: 10);
+        }
+        final driverIndex = index ~/ 2;
+        final driver = state.drivers[driverIndex];
         final phone = driver.phone?.isNotEmpty == true
             ? driver.phone!
             : 'No phone';
         final typeLabel = driver.driverType == 'vendor' ? 'Vendor' : 'Company';
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: AppSpacing.panel,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.black12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.badge_rounded,
-                    size: 18,
-                    color: AppColors.primaryBlue,
-                  ),
+        return Container(
+          padding: AppSpacing.panel,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        driver.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$phone • $typeLabel',
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: const Icon(
+                  Icons.badge_rounded,
+                  size: 18,
+                  color: AppColors.primaryBlue,
                 ),
-                _StatusTag(status: driver.status),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      driver.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$phone • $typeLabel',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusTag(status: driver.status),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                tooltip: 'Edit driver',
+                onPressed: () => _openEdit(context, driver),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                tooltip: 'Delete driver',
+                onPressed: () => _confirmDelete(context, driver),
+              ),
+            ],
           ),
         );
-      }).toList(),
+      }, childCount: itemCount),
+    );
+  }
+
+  void _openEdit(BuildContext context, DriverEntity driver) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CreateDriverSheet(
+        initial: _CreateDriverPayload(
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone ?? '',
+          residentId: driver.residentId ?? '',
+          iqamaBytes: const [],
+          iqamaFileName: driver.iqamaAttachment ?? '',
+        ),
+        onSubmit: (payload) => onEdit(driver, payload),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, DriverEntity driver) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete driver?'),
+        content: Text('This will delete ${driver.name}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await onDelete(driver.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.dangerDark),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -561,6 +657,7 @@ class _Filters extends StatelessWidget {
 }
 
 class _CreateDriverPayload {
+  final String? id;
   final String name;
   final String phone;
   final String residentId;
@@ -568,6 +665,7 @@ class _CreateDriverPayload {
   final String iqamaFileName;
 
   const _CreateDriverPayload({
+    this.id,
     required this.name,
     required this.phone,
     required this.residentId,
@@ -578,8 +676,9 @@ class _CreateDriverPayload {
 
 class _CreateDriverSheet extends StatefulWidget {
   final Future<void> Function(_CreateDriverPayload payload) onSubmit;
+  final _CreateDriverPayload? initial;
 
-  const _CreateDriverSheet({required this.onSubmit});
+  const _CreateDriverSheet({required this.onSubmit, this.initial});
 
   @override
   State<_CreateDriverSheet> createState() => _CreateDriverSheetState();
@@ -593,6 +692,21 @@ class _CreateDriverSheetState extends State<_CreateDriverSheet> {
   String? _iqamaFileName;
   List<int>? _iqamaBytes;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _nameController.text = initial.name;
+      _phoneController.text = initial.phone;
+      _residentIdController.text = initial.residentId;
+      _iqamaFileName = initial.iqamaFileName.isNotEmpty
+          ? initial.iqamaFileName
+          : null;
+      _iqamaBytes = initial.iqamaBytes.isNotEmpty ? initial.iqamaBytes : null;
+    }
+  }
 
   @override
   void dispose() {
@@ -617,7 +731,10 @@ class _CreateDriverSheetState extends State<_CreateDriverSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('New Driver', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                widget.initial == null ? 'New Driver' : 'Edit Driver',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
@@ -656,10 +773,11 @@ class _CreateDriverSheetState extends State<_CreateDriverSheet> {
                     ? null
                     : () async {
                         if (!_formKey.currentState!.validate()) return;
-                        if (_iqamaBytes == null ||
-                            _iqamaBytes!.isEmpty ||
-                            _iqamaFileName == null ||
-                            _iqamaFileName!.isEmpty) {
+                        if (widget.initial == null &&
+                            (_iqamaBytes == null ||
+                                _iqamaBytes!.isEmpty ||
+                                _iqamaFileName == null ||
+                                _iqamaFileName!.isEmpty)) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Iqama file is required.'),
@@ -670,15 +788,16 @@ class _CreateDriverSheetState extends State<_CreateDriverSheet> {
                         setState(() => _isSubmitting = true);
                         await widget.onSubmit(
                           _CreateDriverPayload(
+                            id: widget.initial?.id,
                             name: _nameController.text.trim(),
                             phone: _phoneController.text.trim(),
                             residentId: _residentIdController.text.trim(),
-                            iqamaBytes: _iqamaBytes!,
-                            iqamaFileName: _iqamaFileName!,
+                            iqamaBytes: _iqamaBytes ?? <int>[],
+                            iqamaFileName: _iqamaFileName ?? '',
                           ),
                         );
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(true);
                       },
                 child: _isSubmitting
                     ? const SizedBox(

@@ -87,6 +87,15 @@ class AppRouter {
           return _route(TripCreateScreen(trip: trip), AppRoutes.tripEdit);
         }
         return _route(const TripsListScreen(), AppRoutes.trips);
+      case AppRoutes.tripDuplicate:
+        final trip = settings.arguments;
+        if (trip is TripEntity) {
+          return _route(
+            TripCreateScreen(seedTrip: trip),
+            AppRoutes.tripDuplicate,
+          );
+        }
+        return _route(const TripsListScreen(), AppRoutes.trips);
       case AppRoutes.imports:
         return _route(const ImportUploadScreen(), AppRoutes.imports);
       case AppRoutes.reports:

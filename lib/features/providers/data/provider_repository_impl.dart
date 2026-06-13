@@ -70,4 +70,49 @@ class ProviderRepositoryImpl implements ProviderRepository {
       notes: notes,
     );
   }
+
+  @override
+  Future<ProviderEntity> updateProvider({
+    required String id,
+    String? name,
+    String? type,
+    String? status,
+    String? phone,
+    String? externalRef,
+    String? notes,
+  }) async {
+    final response = await _apiClient.putJson(
+      'vendors/$id',
+      body: {
+        if (name != null) 'name': name,
+        if (type != null) 'type': type,
+        if (status != null) 'status': status,
+        if (phone != null) 'phone': phone,
+        if (externalRef != null) 'external_ref': externalRef,
+        if (notes != null) 'notes': notes,
+      },
+    );
+
+    final data = response['data'];
+    if (data is Map<String, dynamic>) return providerFromApi(data);
+    if (data is Map) return providerFromApi(data.cast<String, dynamic>());
+
+    final items = extractListFromResponse(response);
+    if (items.isNotEmpty) return providerFromApi(items.first);
+
+    return ProviderEntity(
+      id: id,
+      name: name ?? '',
+      status: status ?? 'active',
+      type: type ?? '',
+      phone: phone,
+      externalRef: externalRef,
+      notes: notes,
+    );
+  }
+
+  @override
+  Future<void> deleteProvider(String id) async {
+    await _apiClient.deleteJson('vendors/$id');
+  }
 }

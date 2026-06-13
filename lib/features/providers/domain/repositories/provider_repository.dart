@@ -11,4 +11,16 @@ abstract class ProviderRepository {
     String? externalRef,
     String? notes,
   });
+
+  Future<ProviderEntity> updateProvider({
+    required String id,
+    String? name,
+    String? type,
+    String? status,
+    String? phone,
+    String? externalRef,
+    String? notes,
+  });
+
+  Future<void> deleteProvider(String id);
 }

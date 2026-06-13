@@ -122,4 +122,72 @@ class TruckRepositoryImpl implements TruckRepository {
       return <String, dynamic>{};
     }
   }
+
+  @override
+  Future<TruckEntity> updateTruck({
+    required String id,
+    String? plateNo,
+    String? truckType,
+    String? color,
+    String? model,
+    String? makeYear,
+    String? registrationNumber,
+    List<int>? registrationCardBytes,
+    String? registrationCardFileName,
+    String? ownership,
+    String? vendorId,
+    String? ownerName,
+    String? companyName,
+    String? notes,
+    String? status,
+  }) async {
+    final Map<String, String> body = {};
+    if (plateNo != null) body['plate_no'] = plateNo;
+    if (truckType != null) body['truck_type'] = truckType;
+    if (color != null) body['color'] = color;
+    if (model != null) body['model'] = model;
+    if (makeYear != null) body['make_year'] = makeYear;
+    if (registrationNumber != null) body['registration_number'] = registrationNumber;
+    if (ownership != null) body['ownership'] = ownership;
+    if (vendorId != null) body['vendor_id'] = vendorId;
+    if (ownerName != null) body['owner_name'] = ownerName;
+    if (companyName != null) body['company_name'] = companyName;
+    if (notes != null) body['notes'] = notes;
+    if (status != null) body['status'] = status;
+
+    Map<String, dynamic> response;
+    if (registrationCardBytes != null &&
+        registrationCardBytes.isNotEmpty &&
+        registrationCardFileName != null &&
+        registrationCardFileName.isNotEmpty) {
+      final multipart = http.MultipartFile.fromBytes(
+        'registration_card',
+        registrationCardBytes,
+        filename: registrationCardFileName,
+      );
+      final raw = await _apiClient.postMultipart(
+        'trucks/$id',
+        headers: const {'Accept': 'application/json'},
+        fields: body.map((k, v) => MapEntry(k, v.toString())),
+        files: [multipart],
+      );
+      response = _decodeBody(raw.body);
+    } else {
+      response = await _apiClient.putJson('trucks/$id', body: body);
+    }
+
+    final data = response['data'];
+    if (data is Map<String, dynamic>) return truckFromApi(data);
+    if (data is Map) return truckFromApi(data.cast<String, dynamic>());
+
+    final items = extractListFromResponse(response);
+    if (items.isNotEmpty) return truckFromApi(items.first);
+
+    return truckFromApi({'id': id, 'plate_no': plateNo ?? '', 'status': status ?? ''});
+  }
+
+  @override
+  Future<void> deleteTruck(String id) async {
+    await _apiClient.deleteJson('trucks/$id');
+  }
 }

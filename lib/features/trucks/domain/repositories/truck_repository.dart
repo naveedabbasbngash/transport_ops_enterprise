@@ -21,4 +21,24 @@ abstract class TruckRepository {
     String? companyName,
     String? notes,
   });
+
+  Future<TruckEntity> updateTruck({
+    required String id,
+    String? plateNo,
+    String? truckType,
+    String? color,
+    String? model,
+    String? makeYear,
+    String? registrationNumber,
+    List<int>? registrationCardBytes,
+    String? registrationCardFileName,
+    String? ownership,
+    String? vendorId,
+    String? ownerName,
+    String? companyName,
+    String? notes,
+    String? status,
+  });
+
+  Future<void> deleteTruck(String id);
 }

@@ -93,6 +93,64 @@ class DriverRepositoryImpl implements DriverRepository {
     });
   }
 
+  @override
+  Future<DriverEntity> updateDriver({
+    required String id,
+    String? name,
+    String? phone,
+    String? residentId,
+    String? driverType,
+    String? status,
+    String? vendorId,
+    List<int>? iqamaBytes,
+    String? iqamaFileName,
+  }) async {
+    final Map<String, String> body = {};
+    if (name != null) body['name'] = name;
+    if (phone != null) body['phone'] = phone;
+    if (residentId != null) body['resident_id'] = residentId;
+    if (driverType != null) body['driver_type'] = driverType;
+    if (status != null) body['status'] = status;
+    if (vendorId != null) body['vendor_id'] = vendorId;
+
+    // First PUT JSON for scalar fields
+    Map<String, dynamic> response = await _apiClient.putJson(
+      'drivers/$id',
+      body: body,
+    );
+
+    // Optional iqama upload via dedicated endpoint
+    if (iqamaBytes != null && iqamaFileName != null) {
+      await _apiClient.postMultipart(
+        'drivers/$id/iqama',
+        headers: const {'Accept': 'application/json'},
+        files: [
+          http.MultipartFile.fromBytes(
+            'iqama_attachment',
+            iqamaBytes,
+            filename: iqamaFileName,
+          ),
+        ],
+      );
+      // refresh driver detail after upload
+      response = await _apiClient.getJson('drivers/$id');
+    }
+
+    final data = response['data'];
+    if (data is Map<String, dynamic>) return driverFromApi(data);
+    if (data is Map) return driverFromApi(data.cast<String, dynamic>());
+
+    final items = extractListFromResponse(response);
+    if (items.isNotEmpty) return driverFromApi(items.first);
+
+    return driverFromApi({'id': id, 'name': name ?? '', 'status': status ?? ''});
+  }
+
+  @override
+  Future<void> deleteDriver(String id) async {
+    await _apiClient.deleteJson('drivers/$id');
+  }
+
   Map<String, dynamic> _decodeBody(String body) {
     if (body.trim().isEmpty) return <String, dynamic>{};
     try {

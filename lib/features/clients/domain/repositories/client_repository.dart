@@ -8,4 +8,13 @@ abstract class ClientRepository {
     String? status,
     String? externalRef,
   });
+
+  Future<ClientEntity> updateClient({
+    required String id,
+    String? name,
+    String? status,
+    String? externalRef,
+  });
+
+  Future<void> deleteClient(String id);
 }

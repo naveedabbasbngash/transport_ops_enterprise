@@ -24,6 +24,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
     final user = authState.user;
     final isReadOnly = user?.isOwnerReadOnly ?? true;
     final dashboardState = ref.watch(dashboardViewModelProvider);
+    final dashboardVm = ref.read(dashboardViewModelProvider.notifier);
     final summary = dashboardState.summary ?? DashboardSummary.empty();
     final period = dashboardState.period;
 
@@ -137,6 +138,8 @@ class OwnerDashboardScreen extends ConsumerWidget {
                       onRefresh: () => ref
                           .read(dashboardViewModelProvider.notifier)
                           .loadSummary(),
+                      onDownloadContacts: () =>
+                          _downloadContacts(context, dashboardVm),
                       onLogout: () => _logout(context, ref),
                     ),
                   ),
@@ -161,6 +164,8 @@ class OwnerDashboardScreen extends ConsumerWidget {
                               onSelectPeriod: (value) => ref
                                   .read(dashboardViewModelProvider.notifier)
                                   .setPeriod(value),
+                              onDownloadContacts: () =>
+                                  _downloadContacts(context, dashboardVm),
                               onOpenModule: (route) =>
                                   Navigator.of(context).pushNamed(route),
                             ),
@@ -197,6 +202,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
               onSelectPeriod: (value) => ref
                   .read(dashboardViewModelProvider.notifier)
                   .setPeriod(value),
+              onDownloadContacts: () => _downloadContacts(context, dashboardVm),
               onOpenModule: (route) => Navigator.of(context).pushNamed(route),
               onOpenReference: () => _openReference(context),
               onRefresh: () =>
@@ -227,6 +233,29 @@ class OwnerDashboardScreen extends ConsumerWidget {
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.login, (r) => false);
+  }
+
+  Future<void> _downloadContacts(
+    BuildContext context,
+    DashboardViewModel vm,
+  ) async {
+    final uri = await vm.buildContactsExportUri();
+    if (uri == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Login token missing. Please login again.'),
+        ),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start contacts download.')),
+      );
+    }
   }
 
   String _formatTime(DateTime value) {
@@ -273,6 +302,7 @@ class _SideRail extends StatelessWidget {
   final ValueChanged<String> onOpenModule;
   final VoidCallback onOpenReference;
   final VoidCallback onRefresh;
+  final VoidCallback onDownloadContacts;
   final VoidCallback onLogout;
 
   const _SideRail({
@@ -282,6 +312,7 @@ class _SideRail extends StatelessWidget {
     required this.onOpenModule,
     required this.onOpenReference,
     required this.onRefresh,
+    required this.onDownloadContacts,
     required this.onLogout,
   });
 
@@ -338,6 +369,12 @@ class _SideRail extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
+          _RailActionButton(
+            icon: Icons.download_rounded,
+            text: 'Contacts',
+            onTap: onDownloadContacts,
+          ),
+          const SizedBox(height: 8),
           _RailActionButton(
             icon: Icons.open_in_new_rounded,
             text: 'Reference',
@@ -454,6 +491,7 @@ class _MainBoard extends StatelessWidget {
   final String? loadError;
   final bool isRefreshing;
   final ValueChanged<DashboardPeriod> onSelectPeriod;
+  final VoidCallback onDownloadContacts;
   final ValueChanged<String> onOpenModule;
 
   const _MainBoard({
@@ -466,6 +504,7 @@ class _MainBoard extends StatelessWidget {
     required this.loadError,
     required this.isRefreshing,
     required this.onSelectPeriod,
+    required this.onDownloadContacts,
     required this.onOpenModule,
   });
 
@@ -475,7 +514,11 @@ class _MainBoard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _HeroBlock(roleLabel: roleLabel, isReadOnly: isReadOnly),
+          _HeroBlock(
+            roleLabel: roleLabel,
+            isReadOnly: isReadOnly,
+            onDownloadContacts: onDownloadContacts,
+          ),
           const SizedBox(height: 10),
           _PeriodSelector(value: period, onChanged: onSelectPeriod),
           if (isRefreshing) ...[
@@ -543,6 +586,7 @@ class _MobileBoard extends StatelessWidget {
   final bool isRefreshing;
   final bool isTablet;
   final ValueChanged<DashboardPeriod> onSelectPeriod;
+  final VoidCallback onDownloadContacts;
   final ValueChanged<String> onOpenModule;
   final VoidCallback onOpenReference;
   final VoidCallback onRefresh;
@@ -560,6 +604,7 @@ class _MobileBoard extends StatelessWidget {
     required this.isRefreshing,
     required this.isTablet,
     required this.onSelectPeriod,
+    required this.onDownloadContacts,
     required this.onOpenModule,
     required this.onOpenReference,
     required this.onRefresh,
@@ -619,7 +664,11 @@ class _MobileBoard extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(14),
             children: [
-              _HeroBlock(roleLabel: roleLabel, isReadOnly: isReadOnly),
+              _HeroBlock(
+                roleLabel: roleLabel,
+                isReadOnly: isReadOnly,
+                onDownloadContacts: onDownloadContacts,
+              ),
               const SizedBox(height: 10),
               _PeriodSelector(value: period, onChanged: onSelectPeriod),
               if (isRefreshing) ...[
@@ -674,8 +723,13 @@ class _MobileBoard extends StatelessWidget {
 class _HeroBlock extends StatelessWidget {
   final String roleLabel;
   final bool isReadOnly;
+  final VoidCallback onDownloadContacts;
 
-  const _HeroBlock({required this.roleLabel, required this.isReadOnly});
+  const _HeroBlock({
+    required this.roleLabel,
+    required this.isReadOnly,
+    required this.onDownloadContacts,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -714,6 +768,15 @@ class _HeroBlock extends StatelessWidget {
                 ? AppColors.darkDangerChip
                 : AppColors.darkSuccessChip,
             foreground: Colors.white,
+          ),
+          FilledButton.icon(
+            onPressed: onDownloadContacts,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.primaryBlue,
+            ),
+            icon: const Icon(Icons.download_rounded, size: 18),
+            label: const Text('Download Contacts'),
           ),
         ],
       ),

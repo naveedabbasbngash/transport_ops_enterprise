@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/presentation/auth_view_model.dart';
+import '../domain/entities/client_entity.dart';
 import 'client_state.dart';
 import 'client_view_model.dart';
 
@@ -140,7 +141,24 @@ class ClientListScreen extends ConsumerWidget {
                           const LinearProgressIndicator(minHeight: 2),
                         ],
                         const SizedBox(height: AppSpacing.md),
-                        _ListPanel(state: state),
+                        _ListPanel(
+                          state: state,
+                          onEdit: (payload) async {
+                            await ref
+                                .read(clientViewModelProvider.notifier)
+                                .updateClient(
+                                  id: payload.id!,
+                                  name: payload.name,
+                                  status: payload.status,
+                                  externalRef: payload.externalRef,
+                                );
+                          },
+                          onDelete: (id) async {
+                            await ref
+                                .read(clientViewModelProvider.notifier)
+                                .deleteClient(id);
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -335,8 +353,14 @@ class _MetricCard extends StatelessWidget {
 
 class _ListPanel extends StatelessWidget {
   final ClientState state;
+  final Future<void> Function(_CreateClientPayload payload) onEdit;
+  final Future<void> Function(String id) onDelete;
 
-  const _ListPanel({required this.state});
+  const _ListPanel({
+    required this.state,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -409,11 +433,62 @@ class _ListPanel extends StatelessWidget {
                   ),
                 ),
                 _StatusTag(status: client.status),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  tooltip: 'Edit client',
+                  onPressed: () => _openEdit(context, client),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  tooltip: 'Delete client',
+                  onPressed: () => _confirmDelete(context, client),
+                ),
               ],
             ),
           ),
         );
       }).toList(),
+    );
+  }
+
+  void _openEdit(BuildContext context, ClientEntity client) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CreateClientSheet(
+        initial: _CreateClientPayload(
+          id: client.id,
+          name: client.name,
+          status: client.status,
+          externalRef: client.externalRef,
+        ),
+        onSubmit: onEdit,
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ClientEntity client) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete client?'),
+        content: Text('This will delete ${client.name}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await onDelete(client.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.dangerDark),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -537,11 +612,13 @@ class _Filters extends StatelessWidget {
 }
 
 class _CreateClientPayload {
+  final String? id;
   final String name;
   final String status;
   final String? externalRef;
 
   const _CreateClientPayload({
+    this.id,
     required this.name,
     required this.status,
     this.externalRef,
@@ -550,8 +627,9 @@ class _CreateClientPayload {
 
 class _CreateClientSheet extends StatefulWidget {
   final Future<void> Function(_CreateClientPayload payload) onSubmit;
+  final _CreateClientPayload? initial;
 
-  const _CreateClientSheet({required this.onSubmit});
+  const _CreateClientSheet({required this.onSubmit, this.initial});
 
   @override
   State<_CreateClientSheet> createState() => _CreateClientSheetState();
@@ -563,6 +641,17 @@ class _CreateClientSheetState extends State<_CreateClientSheet> {
   final _externalRefController = TextEditingController();
   String _status = 'active';
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _nameController.text = initial.name;
+      _externalRefController.text = initial.externalRef ?? '';
+      _status = initial.status;
+    }
+  }
 
   @override
   void dispose() {
@@ -586,7 +675,10 @@ class _CreateClientSheetState extends State<_CreateClientSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('New Client', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                widget.initial == null ? 'New Client' : 'Edit Client',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
@@ -629,7 +721,7 @@ class _CreateClientSheetState extends State<_CreateClientSheet> {
                           ),
                         );
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(true);
                       },
                 child: _isSubmitting
                     ? const SizedBox(
@@ -637,7 +729,7 @@ class _CreateClientSheetState extends State<_CreateClientSheet> {
                         width: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Save Client'),
+                    : Text(widget.initial == null ? 'Save Client' : 'Update'),
               ),
             ],
           ),

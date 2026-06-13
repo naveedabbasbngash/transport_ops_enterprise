@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/presentation/auth_view_model.dart';
+import '../domain/entities/provider_entity.dart';
 import 'provider_state.dart';
 import 'provider_view_model.dart';
 
@@ -147,7 +148,27 @@ class ProviderListScreen extends ConsumerWidget {
                           const LinearProgressIndicator(minHeight: 2),
                         ],
                         const SizedBox(height: AppSpacing.md),
-                        _ListPanel(state: state),
+                        _ListPanel(
+                          state: state,
+                          onEdit: (payload) async {
+                            await ref
+                                .read(providerViewModelProvider.notifier)
+                                .updateProvider(
+                                  id: payload.id!,
+                                  name: payload.name,
+                                  type: payload.type,
+                                  status: payload.status,
+                                  phone: payload.phone,
+                                  externalRef: payload.externalRef,
+                                  notes: payload.notes,
+                                );
+                          },
+                          onDelete: (id) async {
+                            await ref
+                                .read(providerViewModelProvider.notifier)
+                                .deleteProvider(id);
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -345,8 +366,14 @@ class _MetricCard extends StatelessWidget {
 
 class _ListPanel extends StatelessWidget {
   final ProviderState state;
+  final Future<void> Function(_CreateProviderPayload payload) onEdit;
+  final Future<void> Function(String id) onDelete;
 
-  const _ListPanel({required this.state});
+  const _ListPanel({
+    required this.state,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -421,11 +448,71 @@ class _ListPanel extends StatelessWidget {
                   ),
                 ),
                 _StatusTag(status: provider.status),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  tooltip: 'Edit provider',
+                  onPressed: () {
+                    _openEdit(context, provider);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  tooltip: 'Delete provider',
+                  onPressed: () {
+                    _confirmDelete(context, provider);
+                  },
+                ),
               ],
             ),
           ),
         );
       }).toList(),
+    );
+  }
+
+  void _openEdit(BuildContext context, ProviderEntity provider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CreateProviderSheet(
+        initial: _CreateProviderPayload(
+          id: provider.id,
+          name: provider.name,
+          type: provider.type.isNotEmpty == true
+              ? provider.type
+              : 'regular_vendor',
+          status: provider.status,
+          phone: provider.phone,
+          externalRef: provider.externalRef,
+          notes: provider.notes,
+        ),
+        onSubmit: onEdit,
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ProviderEntity provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete provider?'),
+        content: Text('This will delete ${provider.name}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await onDelete(provider.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.dangerDark),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -555,6 +642,7 @@ class _CreateProviderPayload {
   final String? phone;
   final String? externalRef;
   final String? notes;
+  final String? id;
 
   const _CreateProviderPayload({
     required this.name,
@@ -563,13 +651,15 @@ class _CreateProviderPayload {
     this.phone,
     this.externalRef,
     this.notes,
+    this.id,
   });
 }
 
 class _CreateProviderSheet extends StatefulWidget {
   final Future<void> Function(_CreateProviderPayload payload) onSubmit;
+  final _CreateProviderPayload? initial;
 
-  const _CreateProviderSheet({required this.onSubmit});
+  const _CreateProviderSheet({required this.onSubmit, this.initial});
 
   @override
   State<_CreateProviderSheet> createState() => _CreateProviderSheetState();
@@ -584,6 +674,20 @@ class _CreateProviderSheetState extends State<_CreateProviderSheet> {
   String _status = 'active';
   String _type = 'regular_vendor';
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _nameController.text = initial.name;
+      _phoneController.text = initial.phone ?? '';
+      _externalRefController.text = initial.externalRef ?? '';
+      _notesController.text = initial.notes ?? '';
+      _status = initial.status;
+      _type = initial.type;
+    }
+  }
 
   @override
   void dispose() {
@@ -610,7 +714,7 @@ class _CreateProviderSheetState extends State<_CreateProviderSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'New Provider',
+                widget.initial == null ? 'New Provider' : 'Edit Provider',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
@@ -679,6 +783,7 @@ class _CreateProviderSheetState extends State<_CreateProviderSheet> {
                         setState(() => _isSubmitting = true);
                         await widget.onSubmit(
                           _CreateProviderPayload(
+                            id: widget.initial?.id,
                             name: _nameController.text.trim(),
                             type: _type,
                             status: _status,
@@ -688,7 +793,7 @@ class _CreateProviderSheetState extends State<_CreateProviderSheet> {
                           ),
                         );
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(true);
                       },
                 child: _isSubmitting
                     ? const SizedBox(
@@ -696,7 +801,7 @@ class _CreateProviderSheetState extends State<_CreateProviderSheet> {
                         width: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Save Provider'),
+                    : Text(widget.initial == null ? 'Save Provider' : 'Update'),
               ),
             ],
           ),

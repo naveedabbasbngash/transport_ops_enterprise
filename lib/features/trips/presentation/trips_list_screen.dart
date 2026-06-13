@@ -651,6 +651,16 @@ class _TripCard extends StatelessWidget {
                     ),
                   if (!isReadOnly)
                     IconButton(
+                      icon: const Icon(Icons.content_copy_rounded, size: 18),
+                      tooltip: 'Duplicate trip',
+                      onPressed: () {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(AppRoutes.tripDuplicate, arguments: trip);
+                      },
+                    ),
+                  if (!isReadOnly)
+                    IconButton(
                       icon: const Icon(Icons.delete_outline_rounded, size: 18),
                       tooltip: 'Delete trip',
                       onPressed: onDelete,

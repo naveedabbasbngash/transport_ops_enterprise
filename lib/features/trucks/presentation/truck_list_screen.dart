@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../auth/presentation/auth_view_model.dart';
+import '../domain/entities/truck_entity.dart';
 import 'truck_state.dart';
 import 'truck_view_model.dart';
 
@@ -47,110 +48,149 @@ class TruckListScreen extends ConsumerWidget {
                   ref.read(truckViewModelProvider.notifier).loadTrucks(),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: AppSpacing.page,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1200),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _Hero(
-                          title: 'Fleet Directory',
-                          subtitle: isReadOnly
-                              ? 'Read only access'
-                              : 'Edit enabled',
-                          tag: '${state.trucks.length} total trucks',
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        _Filters(
-                          search: state.search,
-                          status: state.status,
-                          onSearchChanged: (value) => ref
-                              .read(truckViewModelProvider.notifier)
-                              .updateSearch(value),
-                          onStatusChanged: (value) => ref
-                              .read(truckViewModelProvider.notifier)
-                              .updateStatus(value),
-                          onApply: () => ref
-                              .read(truckViewModelProvider.notifier)
-                              .applyFilters(),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final wide = constraints.maxWidth >= 760;
-                            if (wide) {
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Active',
-                                      value: '$activeCount',
-                                      color: AppColors.successGreen,
-                                      icon: Icons.check_circle_rounded,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Company Owned',
-                                      value: '$companyOwnedCount',
-                                      color: AppColors.primaryBlue,
-                                      icon: Icons.apartment_rounded,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _MetricCard(
-                                      label: 'Vendor Owned',
-                                      value: '$vendorOwnedCount',
-                                      color: AppColors.accentOrange,
-                                      icon: Icons.storefront_rounded,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }
-                            return Column(
-                              children: [
-                                _MetricCard(
-                                  label: 'Active',
-                                  value: '$activeCount',
-                                  color: AppColors.successGreen,
-                                  icon: Icons.check_circle_rounded,
-                                ),
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: AppSpacing.page,
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1200),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Hero(
+                                title: 'Fleet Directory',
+                                subtitle: isReadOnly
+                                    ? 'Read only access'
+                                    : 'Edit enabled',
+                                tag: '${state.trucks.length} total trucks',
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _Filters(
+                                search: state.search,
+                                status: state.status,
+                                onSearchChanged: (value) => ref
+                                    .read(truckViewModelProvider.notifier)
+                                    .updateSearch(value),
+                                onStatusChanged: (value) => ref
+                                    .read(truckViewModelProvider.notifier)
+                                    .updateStatus(value),
+                                onApply: () => ref
+                                    .read(truckViewModelProvider.notifier)
+                                    .applyFilters(),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final wide = constraints.maxWidth >= 760;
+                                  if (wide) {
+                                    return Row(
+                                      children: [
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Active',
+                                            value: '$activeCount',
+                                            color: AppColors.successGreen,
+                                            icon: Icons.check_circle_rounded,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Company Owned',
+                                            value: '$companyOwnedCount',
+                                            color: AppColors.primaryBlue,
+                                            icon: Icons.apartment_rounded,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _MetricCard(
+                                            label: 'Vendor Owned',
+                                            value: '$vendorOwnedCount',
+                                            color: AppColors.accentOrange,
+                                            icon: Icons.storefront_rounded,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                  return Column(
+                                    children: [
+                                      _MetricCard(
+                                        label: 'Active',
+                                        value: '$activeCount',
+                                        color: AppColors.successGreen,
+                                        icon: Icons.check_circle_rounded,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _MetricCard(
+                                        label: 'Company Owned',
+                                        value: '$companyOwnedCount',
+                                        color: AppColors.primaryBlue,
+                                        icon: Icons.apartment_rounded,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _MetricCard(
+                                        label: 'Vendor Owned',
+                                        value: '$vendorOwnedCount',
+                                        color: AppColors.accentOrange,
+                                        icon: Icons.storefront_rounded,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              if (state.error != null)
+                                _ErrorBanner(message: state.error!),
+                              if (state.isLoading && state.trucks.isEmpty) ...[
                                 const SizedBox(height: 10),
-                                _MetricCard(
-                                  label: 'Company Owned',
-                                  value: '$companyOwnedCount',
-                                  color: AppColors.primaryBlue,
-                                  icon: Icons.apartment_rounded,
-                                ),
-                                const SizedBox(height: 10),
-                                _MetricCard(
-                                  label: 'Vendor Owned',
-                                  value: '$vendorOwnedCount',
-                                  color: AppColors.accentOrange,
-                                  icon: Icons.storefront_rounded,
-                                ),
+                                const LinearProgressIndicator(minHeight: 2),
                               ],
-                            );
-                          },
+                              const SizedBox(height: AppSpacing.md),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
-                        if (state.error != null)
-                          _ErrorBanner(message: state.error!),
-                        if (state.isLoading) ...[
-                          const SizedBox(height: 10),
-                          const LinearProgressIndicator(minHeight: 2),
-                        ],
-                        const SizedBox(height: AppSpacing.md),
-                        _ListPanel(state: state),
-                      ],
+                      ),
                     ),
                   ),
-                ),
+                  SliverPadding(
+                    padding: AppSpacing.page,
+                    sliver: _ListPanel(
+                      state: state,
+                      onEdit: (truck, payload) async {
+                        await ref
+                            .read(truckViewModelProvider.notifier)
+                            .updateTruck(
+                              id: truck.id,
+                              plateNo: payload.plateNo,
+                              truckType: payload.truckType,
+                              color: payload.color,
+                              model: payload.model,
+                              makeYear: payload.makeYear,
+                              registrationNumber: payload.registrationNumber,
+                              registrationCardBytes:
+                                  payload.registrationCardBytes,
+                              registrationCardFileName:
+                                  payload.registrationCardFileName,
+                              ownership: payload.ownership,
+                              vendorId: payload.vendorId,
+                              ownerName: payload.ownerName,
+                              companyName: payload.companyName,
+                              notes: payload.notes,
+                              status: payload.status ?? truck.status,
+                            );
+                      },
+                      onDelete: (id) async {
+                        await ref
+                            .read(truckViewModelProvider.notifier)
+                            .deleteTruck(id);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -351,97 +391,170 @@ class _MetricCard extends StatelessWidget {
 
 class _ListPanel extends StatelessWidget {
   final TruckState state;
+  final Future<void> Function(TruckEntity truck, _CreateTruckPayload payload)
+  onEdit;
+  final Future<void> Function(String id) onDelete;
 
-  const _ListPanel({required this.state});
+  const _ListPanel({
+    required this.state,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.trucks.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SliverToBoxAdapter(
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (state.trucks.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black12),
-        ),
-        child: const Text(
-          'No trucks found.',
-          style: TextStyle(color: Colors.black54),
+      return SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: const Text(
+            'No trucks found.',
+            style: TextStyle(color: Colors.black54),
+          ),
         ),
       );
     }
 
-    return Column(
-      children: state.trucks.map((truck) {
+    final itemCount = state.trucks.length * 2 - 1;
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index.isOdd) return const SizedBox(height: 10);
+        final truckIndex = index ~/ 2;
+        final truck = state.trucks[truckIndex];
         final ownership = truck.ownership == 'vendor' ? 'Vendor' : 'Company';
         final truckType = (truck.truckType?.isNotEmpty ?? false)
             ? truck.truckType!
             : 'Unknown type';
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: AppSpacing.panel,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.black12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.local_shipping_rounded,
-                    size: 18,
-                    color: AppColors.primaryBlue,
-                  ),
+        return Container(
+          padding: AppSpacing.panel,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        truck.plateNo,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$truckType • $ownership',
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${(truck.ownerName?.isNotEmpty ?? false) ? truck.ownerName : '-'} • '
-                        '${(truck.companyName?.isNotEmpty ?? false) ? truck.companyName : '-'}',
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: const Icon(
+                  Icons.local_shipping_rounded,
+                  size: 18,
+                  color: AppColors.primaryBlue,
                 ),
-                _StatusTag(status: truck.status),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      truck.plateNo,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$truckType • $ownership',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${(truck.ownerName?.isNotEmpty ?? false) ? truck.ownerName : '-'} • ${(truck.companyName?.isNotEmpty ?? false) ? truck.companyName : '-'}',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusTag(status: truck.status),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                tooltip: 'Edit truck',
+                onPressed: () => _openEdit(context, truck),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                tooltip: 'Delete truck',
+                onPressed: () => _confirmDelete(context, truck),
+              ),
+            ],
           ),
         );
-      }).toList(),
+      }, childCount: itemCount),
+    );
+  }
+
+  void _openEdit(BuildContext context, TruckEntity truck) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CreateTruckSheet(
+        initial: _CreateTruckPayload(
+          id: truck.id,
+          plateNo: truck.plateNo,
+          truckType: truck.truckType ?? '',
+          color: truck.color ?? '',
+          model: truck.model ?? '',
+          makeYear: truck.makeYear ?? '',
+          registrationNumber: truck.registrationNumber ?? '',
+          registrationCardBytes: const [],
+          registrationCardFileName: '',
+          ownership: truck.ownership ?? 'company',
+          vendorId: truck.vendorId,
+          ownerName: truck.ownerName ?? '',
+          companyName: truck.companyName ?? '',
+          notes: truck.notes ?? '',
+          status: truck.status,
+        ),
+        onSubmit: (payload) => onEdit(truck, payload),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, TruckEntity truck) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete truck?'),
+        content: Text('This will delete ${truck.plateNo}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await onDelete(truck.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.dangerDark),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -565,7 +678,9 @@ class _Filters extends StatelessWidget {
 }
 
 class _CreateTruckPayload {
+  final String? id;
   final String plateNo;
+  final String? status;
   final String? truckType;
   final String? color;
   final String? model;
@@ -580,6 +695,8 @@ class _CreateTruckPayload {
   final String? notes;
 
   const _CreateTruckPayload({
+    this.id,
+    this.status,
     required this.plateNo,
     this.truckType,
     this.color,
@@ -598,8 +715,9 @@ class _CreateTruckPayload {
 
 class _CreateTruckSheet extends StatefulWidget {
   final Future<void> Function(_CreateTruckPayload payload) onSubmit;
+  final _CreateTruckPayload? initial;
 
-  const _CreateTruckSheet({required this.onSubmit});
+  const _CreateTruckSheet({required this.onSubmit, this.initial});
 
   @override
   State<_CreateTruckSheet> createState() => _CreateTruckSheetState();

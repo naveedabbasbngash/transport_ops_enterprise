@@ -13,4 +13,18 @@ abstract class DriverRepository {
     required List<int> iqamaBytes,
     required String iqamaFileName,
   });
+
+  Future<DriverEntity> updateDriver({
+    required String id,
+    String? name,
+    String? phone,
+    String? residentId,
+    String? driverType,
+    String? status,
+    String? vendorId,
+    List<int>? iqamaBytes,
+    String? iqamaFileName,
+  });
+
+  Future<void> deleteDriver(String id);
 }

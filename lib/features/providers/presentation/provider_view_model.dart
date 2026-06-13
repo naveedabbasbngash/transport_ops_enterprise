@@ -69,6 +69,48 @@ class ProviderViewModel extends StateNotifier<ProviderState> {
       );
     }
   }
+
+  Future<void> updateProvider({
+    required String id,
+    String? name,
+    String? type,
+    String? status,
+    String? phone,
+    String? externalRef,
+    String? notes,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.updateProvider(
+        id: id,
+        name: name,
+        type: type,
+        status: status,
+        phone: phone,
+        externalRef: externalRef,
+        notes: notes,
+      );
+      await loadProviders();
+    } catch (_) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Unable to update provider.',
+      );
+    }
+  }
+
+  Future<void> deleteProvider(String id) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.deleteProvider(id);
+      await loadProviders();
+    } catch (_) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Unable to delete provider.',
+      );
+    }
+  }
 }
 
 final providerViewModelProvider =

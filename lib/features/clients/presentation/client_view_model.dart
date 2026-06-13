@@ -59,6 +59,42 @@ class ClientViewModel extends StateNotifier<ClientState> {
       );
     }
   }
+
+  Future<void> updateClient({
+    required String id,
+    String? name,
+    String? status,
+    String? externalRef,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.updateClient(
+        id: id,
+        name: name,
+        status: status,
+        externalRef: externalRef,
+      );
+      await loadClients();
+    } catch (_) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Unable to update client.',
+      );
+    }
+  }
+
+  Future<void> deleteClient(String id) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.deleteClient(id);
+      await loadClients();
+    } catch (_) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Unable to delete client.',
+      );
+    }
+  }
 }
 
 final clientViewModelProvider =

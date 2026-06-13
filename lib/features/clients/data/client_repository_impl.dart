@@ -61,4 +61,40 @@ class ClientRepositoryImpl implements ClientRepository {
       externalRef: externalRef,
     );
   }
+
+  @override
+  Future<ClientEntity> updateClient({
+    required String id,
+    String? name,
+    String? status,
+    String? externalRef,
+  }) async {
+    final response = await _apiClient.putJson(
+      'clients/$id',
+      body: {
+        if (name != null) 'name': name,
+        if (status != null) 'status': status,
+        if (externalRef != null) 'external_ref': externalRef,
+      },
+    );
+
+    final data = response['data'];
+    if (data is Map<String, dynamic>) return clientFromApi(data);
+    if (data is Map) return clientFromApi(data.cast<String, dynamic>());
+
+    final items = extractListFromResponse(response);
+    if (items.isNotEmpty) return clientFromApi(items.first);
+
+    return ClientEntity(
+      id: id,
+      name: name ?? '',
+      status: status ?? 'active',
+      externalRef: externalRef,
+    );
+  }
+
+  @override
+  Future<void> deleteClient(String id) async {
+    await _apiClient.deleteJson('clients/$id');
+  }
 }

@@ -154,6 +154,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                               icon: const Icon(Icons.table_chart_rounded),
                               label: const Text('Download Excel'),
                             ),
+                            OutlinedButton.icon(
+                              onPressed: _downloadVehicleSheetExcel,
+                              icon: const Icon(Icons.grid_on_rounded),
+                              label: const Text('Download Vehicle Sheet'),
+                            ),
                           ],
                         ),
                         if (_loading)
@@ -665,6 +670,32 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open Excel export.')),
+      );
+    }
+  }
+
+  Future<void> _downloadVehicleSheetExcel() async {
+    final token = await AuthLocalSource.getToken();
+    if (token == null || token.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Login token missing. Please login again.'),
+        ),
+      );
+      return;
+    }
+    final base = await ApiBaseUrlStore.get() ?? Env.apiBaseUrl;
+    final rawBase = base.endsWith('/api')
+        ? base.substring(0, base.length - 4)
+        : base;
+    final uri = Uri.parse(
+      '$rawBase/api/orders/${_order.id}/vehicle-sheet-excel-download',
+    ).replace(queryParameters: {'token': token});
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open vehicle sheet export.')),
       );
     }
   }
